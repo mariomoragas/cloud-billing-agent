@@ -1,0 +1,6 @@
+service_name_original,sku,region,usage_quantity,usage_unit,cost,currency,period
+Amazon EC2,m5.large,us-east-1,120,Hours,845.23,USD,2026-03
+Amazon S3,Standard Storage,us-east-1,2048,GB-Month,120.48,USD,2026-03
+Amazon RDS,db.t3.medium,us-east-1,80,Hours,342.11,USD,2026-03
+AWS Lambda,Requests,us-east-1,2500000,Requests,45.90,USD,2026-03
+Amazon EC2,m5.large,us-west-2,95,Hours,702.17,USD,2026-03

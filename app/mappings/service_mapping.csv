@@ -1,0 +1,156 @@
+source_cloud,source_service,source_pattern,oci_service,rule_type,confidence
+aws,Amazon Elastic Compute Cloud (EC2),.*,OCI Virtual Machine Instances,exact,0.98
+aws,Amazon EC2,.*,OCI Virtual Machine Instances,exact,0.98
+aws,Amazon Elastic Compute Cloud,.*,OCI Virtual Machine Instances,exact,0.98
+aws,Amazon EC2 Dedicated Instances,.*,OCI Dedicated Virtual Machine Hosts,exact,0.96
+aws,Amazon EC2 Bare Metal Instances,.*,OCI Bare Metal Instances,exact,0.96
+aws,Amazon Elastic Kubernetes Service (EKS),.*,Oracle Container Engine for Kubernetes; OCI Registry,exact,0.95
+aws,Amazon Elastic Container Registry,.*,OCI Registry,exact,0.95
+aws,Lambda,.*,Oracle Functions,exact,0.96
+aws,AWS Lambda,.*,Oracle Functions,exact,0.96
+aws,Amazon Simple Storage Service (S3),.*,Object Storage,exact,0.98
+aws,Amazon S3,.*,Object Storage,exact,0.98
+aws,Amazon Simple Storage Service,.*,Object Storage,exact,0.98
+aws,Amazon S3 Glacier,.*,Archive Storage,exact,0.95
+aws,Amazon S3 Glacier Deep Archive,.*,Archive Storage,exact,0.95
+aws,Amazon Elastic Block Store (EBS),.*,Block Volumes,exact,0.96
+aws,Amazon Elastic File System,.*,File Storage,exact,0.96
+aws,Amazon Elastic File System (EFS),.*,File Storage,exact,0.96
+aws,AWS Snowball,.*,Data Transfer Appliance,exact,0.93
+aws,AWS Storage Gateway,.*,rclone; OCIFS Utility (Linux),exact,0.78
+aws,Amazon Virtual Private Cloud,.*,Virtual Cloud Network (VCN),exact,0.98
+aws,AWS Direct Connect,.*,FastConnect,exact,0.97
+aws,AWS Data Transfer,.*,OCI Data Transfer,pattern,0.99
+aws,AWS VPN,.*,VPN Connect,exact,0.96
+aws,Amazon Route 53,.*,OCI Domain Name System (DNS); OCI Traffic Management,exact,0.95
+aws,AWS Elastic Load Balancing,.*,OCI Load Balancing,exact,0.96
+aws,Elastic Load Balancing,.*,OCI Load Balancing,exact,0.96
+aws,Amazon Simple Email Service,.*,OCI Email Delivery,exact,0.95
+aws,Amazon Simple Email Service (SES),.*,OCI Email Delivery,exact,0.95
+aws,Web Application Firewall,.*,Web Application Firewall,exact,0.95
+aws,Shield,.*,DDoS Protection,exact,0.92
+aws,Amazon Relational Database Service (RDS),.*,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service; OCI PostgreSQL,exact,0.88
+aws,Amazon Relational Database Service,.*,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service; OCI PostgreSQL,exact,0.88
+aws,Amazon RDS,.*,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service; OCI PostgreSQL,exact,0.88
+aws,Amazon Aurora,.*,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service; OCI PostgreSQL,exact,0.86
+aws,AWS ElastiCache,.*,Oracle Cloud Infrastructure Cache; OCI Search with OpenSearch,exact,0.84
+aws,Amazon ElastiCache,.*,Oracle Cloud Infrastructure Cache; OCI Search with OpenSearch,exact,0.84
+aws,Amazon DynamoDB,.*,Oracle NoSQL Database Cloud Service; Oracle Autonomous JSON Database (AJD),exact,0.86
+aws,Amazon Redshift,.*,Oracle Autonomous Data Warehouse (ADW); Oracle MySQL HeatWave,exact,0.88
+aws,Batch,.*,OCI Data Flow; Oracle Big Data Service,exact,0.82
+aws,Amazon Elastic MapReduce,.*,OCI Data Flow; Oracle Big Data Service,exact,0.84
+aws,Amazon Kinesis,.*,OCI Streaming,exact,0.9
+aws,Amazon Kinesis Firehose,.*,OCI Streaming,exact,0.9
+aws,Amazon QuickSight,.*,Oracle Analytics Cloud,exact,0.9
+aws,Amazon Quicksight,.*,Oracle Analytics Cloud,exact,0.9
+aws,Glue,.*,OCI Data Catalog,exact,0.88
+aws,AWS Glue,.*,OCI Data Catalog,exact,0.88
+aws,Athena,.*,Query Service (limited availability),exact,0.82
+aws,Amazon Cloudwatch Events,.*,OCI Events,exact,0.9
+aws,Amazon CloudWatch Events,.*,OCI Events,exact,0.9
+aws,Amazon Simple Queuing Service,.*,OCI Queue,exact,0.95
+aws,Amazon Simple Queue Service,.*,OCI Queue,exact,0.95
+aws,Amazon Simple Notification Service,.*,OCI Notifications,exact,0.95
+aws,Amazon CloudWatch,.*,OCI Monitoring,exact,0.94
+aws,AmazonCloudWatch,.*,OCI Monitoring,exact,0.94
+aws,Amazon CloudWatch Logs,.*,OCI Logging,exact,0.94
+aws,CloudFormation,.*,OCI Resource Manager,exact,0.94
+aws,IAM,.*,OCI IAM,exact,0.95
+aws,Key Management Service,.*,OCI Vault,exact,0.94
+aws,AWS Key Management Service,.*,OCI Vault,exact,0.94
+aws,CloudTrail,.*,OCI Audit,exact,0.95
+aws,AWS CloudTrail,.*,OCI Audit,exact,0.95
+aws,Inspector,.*,OCI Cloud Guard,exact,0.88
+aws,Amazon SageMaker,.*,OCI Data Science; OCI Data Labeling,exact,0.86
+azure,Azure Virtual Machines,.*,OCI Virtual Machine Instances,exact,0.98
+azure,Virtual Machines,.*,OCI Virtual Machine Instances,exact,0.98
+azure,Azure Dedicated Hosts,.*,OCI Dedicated Virtual Machine Hosts,exact,0.96
+azure,Azure BareMetal Infrastructure,.*,OCI Bare Metal Instances,exact,0.96
+azure,Azure Kubernetes Service (AKS),.*,Oracle Container Engine for Kubernetes; OCI Registry,exact,0.95
+azure,Azure Container Registry,.*,OCI Registry,exact,0.95
+azure,Azure Functions,.*,Oracle Functions,exact,0.96
+azure,Functions,.*,Oracle Functions,exact,0.96
+azure,Blob Storage,.*,Object Storage,exact,0.98
+azure,Blob Storage (archive access tier),.*,Archive Storage,exact,0.95
+azure,Managed disks,.*,Block Volumes,exact,0.96
+azure,Azure Files,.*,File Storage,exact,0.96
+azure,Import/Export Azure Data Box,.*,Data Transfer Appliance,exact,0.93
+azure,StorSimple,.*,rclone; OCIFS Utility (Linux),exact,0.76
+azure,Virtual Network,.*,Virtual Cloud Network (VCN),exact,0.98
+azure,ExpressRoute,.*,FastConnect,exact,0.97
+azure,VPN Gateway,.*,VPN Connect,exact,0.96
+azure,Azure DNS,.*,OCI Domain Name System (DNS); OCI Traffic Management,exact,0.95
+azure,Azure Traffic Manager,.*,OCI Domain Name System (DNS); OCI Traffic Management,exact,0.95
+azure,Azure Load Balancer,.*,OCI Load Balancing,exact,0.95
+azure,Azure Application Gateway,.*,OCI Load Balancing,exact,0.95
+azure,Web Application Firewall,.*,Web Application Firewall,exact,0.95
+azure,DDoS Protection,.*,DDoS Protection,exact,0.92
+azure,SQL Database,.*,Oracle Autonomous Transaction Processing (ATP); Oracle Database@Azure; Oracle MySQL Database Service,exact,0.86
+azure,Azure SQL Database,.*,Oracle Autonomous Transaction Processing (ATP); Oracle Database@Azure; Oracle MySQL Database Service,exact,0.86
+azure,Oracle Database services,.*,Oracle Database@Azure,exact,0.9
+azure,Database for MySQL,.*,Oracle MySQL Database Service,exact,0.92
+azure,Database for PostgreSQL,.*,OCI PostgreSQL,exact,0.92
+azure,Table Storage,.*,Oracle NoSQL Database; Oracle Autonomous JSON Database (AJD),exact,0.82
+azure,Cosmos DB,.*,Oracle NoSQL Database; Oracle Autonomous JSON Database (AJD),exact,0.86
+azure,Synapse Analytics,.*,Oracle Autonomous Data Warehouse (ADW); Oracle MySQL HeatWave,exact,0.88
+azure,Batch,.*,OCI Data Flow; Oracle Big Data Service,exact,0.82
+azure,Streaming Analytics,.*,OCI Streaming,exact,0.88
+azure,Power BI,.*,Oracle Analytics Cloud,exact,0.9
+azure,Machine Learning,.*,OCI Data Science,exact,0.88
+azure,Data Catalog,.*,OCI Data Catalog,exact,0.9
+azure,Event Grid,.*,OCI Events,exact,0.9
+azure,Queue Storage,.*,OCI Queue,exact,0.84
+azure,Service Bus,.*,OCI Notifications,exact,0.82
+azure,Azure Monitor,.*,OCI Monitoring,exact,0.94
+azure,Azure Monitor Logs,.*,OCI Logging,exact,0.94
+azure,Azure Resource Manager,.*,OCI Resource Manager,exact,0.94
+azure,Entra ID (formerly Azure Active Directory),.*,OCI IAM,exact,0.92
+azure,Entra ID,.*,OCI IAM,exact,0.92
+azure,Key Vault,.*,OCI Vault,exact,0.94
+azure,Activity Log,.*,OCI Audit,exact,0.92
+azure,Defender for Cloud,.*,OCI Cloud Guard,exact,0.88
+gcp,Google Compute Engine (VM Instances),.*,OCI Virtual Machine Instances,exact,0.98
+gcp,Compute Engine,.*,OCI Virtual Machine Instances,exact,0.98
+gcp,Google Compute Engine (Dedicated VM Instances),.*,OCI Dedicated Virtual Machine Hosts,exact,0.96
+gcp,Google Compute Engine (Bare Metal),.*,OCI Bare Metal Instances,exact,0.96
+gcp,Google Kubernetes Engine (GKE),.*,Oracle Container Engine for Kubernetes; OCI Registry,exact,0.95
+gcp,Google Container Registry,.*,OCI Registry,pattern,0.85
+gcp,Google Cloud Functions,.*,Oracle Functions,exact,0.96
+gcp,Cloud Functions,.*,Oracle Functions,exact,0.96
+gcp,Google Cloud Storage,.*,Object Storage,exact,0.98
+gcp,Cloud Storage,.*,Object Storage,exact,0.98
+gcp,Google Cloud Storage Nearline,.*,Archive Storage,exact,0.94
+gcp,Google Compute Engine Disks,.*,Block Volumes,exact,0.96
+gcp,Google Cloud Filestore,.*,File Storage,exact,0.96
+gcp,Google Cloud Transfer Appliance,.*,Data Transfer Appliance,exact,0.93
+gcp,Cloud Storage Transfer Service (for on-premises data),.*,rclone; OCIFS Utility (Linux),exact,0.76
+gcp,Virtual Private Cloud (VPC),.*,Virtual Cloud Network (VCN),exact,0.98
+gcp,Cloud Interconnect,.*,FastConnect,exact,0.97
+gcp,Cloud VPN,.*,VPN Connect,exact,0.96
+gcp,Cloud DNS,.*,OCI Domain Name System (DNS); OCI Traffic Management,exact,0.95
+gcp,Cloud Load Balancing,.*,OCI Load Balancing,exact,0.95
+gcp,Google Workspace,.*,OCI Email Delivery,pattern,0.58
+gcp,Cloud Armor,.*,DDoS Protection,exact,0.9
+gcp,Google Cloud SQL,.*,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service,exact,0.88
+gcp,Cloud SQL,.*,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service,exact,0.88
+gcp,Google Cloud Firestore,.*,Oracle NoSQL Database; Oracle Autonomous JSON Database (AJD),exact,0.86
+gcp,Firestore,.*,Oracle NoSQL Database; Oracle Autonomous JSON Database (AJD),exact,0.86
+gcp,Google BigQuery,.*,Oracle Autonomous Data Warehouse (ADW); Oracle MySQL HeatWave,exact,0.88
+gcp,BigQuery,.*,Oracle Autonomous Data Warehouse (ADW); Oracle MySQL HeatWave,exact,0.88
+gcp,Cloud Dataflow,.*,OCI Data Flow; Oracle Big Data Service,exact,0.84
+gcp,Cloud Pub/Sub,.*,OCI Streaming,exact,0.9
+gcp,Data Studio,.*,Oracle Analytics Cloud,exact,0.88
+gcp,Looker,.*,Oracle Analytics Cloud,exact,0.9
+gcp,Cloud AI Platform,.*,OCI Data Science,exact,0.88
+gcp,Cloud Data Catalog,.*,OCI Data Catalog,exact,0.9
+gcp,Cloud Audit Logs,.*,OCI Events; OCI Audit,pattern,0.76
+gcp,Firebase Cloud Messaging,.*,OCI Notifications,exact,0.84
+gcp,Cloud Monitoring,.*,OCI Monitoring,exact,0.94
+gcp,Cloud Logging,.*,OCI Logging,exact,0.94
+gcp,Cloud Deployment Manager,.*,OCI Resource Manager,exact,0.92
+gcp,Cloud Build,.*,OCI Resource Manager,pattern,0.68
+gcp,Cloud Identity and Access Management (IAM),.*,OCI IAM,exact,0.95
+gcp,Cloud IAM,.*,OCI IAM,exact,0.95
+gcp,Cloud Key Management Service (KMS),.*,OCI Vault,exact,0.94
+gcp,Cloud KMS,.*,OCI Vault,exact,0.94
+gcp,Cloud Security Command Center (SCC),.*,OCI Cloud Guard,exact,0.88
