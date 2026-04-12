@@ -61,6 +61,8 @@ def _handle_process(environ, start_response):
     uploaded_file = form["billing_file"] if "billing_file" in form else None
     file_format = form.getfirst("format", "aws-invoice")
     cloud = form.getfirst("cloud", "aws")
+    company_name = form.getfirst("company_name", "").strip()
+    project_name = form.getfirst("project_name", "").strip()
 
     if uploaded_file is None or not getattr(uploaded_file, "filename", ""):
         return _html_response(
@@ -91,6 +93,8 @@ def _handle_process(environ, start_response):
             file_format=file_format,
             cloud=cloud,
             mapping_path=MAPPING_PATH,
+            company_name=company_name,
+            project_name=project_name,
         )
 
     REPORTS[report_id] = {
@@ -100,7 +104,15 @@ def _handle_process(environ, start_response):
         "presentation_name": presentation_name,
         "preview": _build_preview_context(result),
     }
-    return _html_response(start_response, _render_result(report_id, REPORTS[report_id]))
+    return _html_response(
+        start_response,
+        _render_result(
+            report_id,
+            REPORTS[report_id],
+            company_name=company_name,
+            project_name=project_name,
+        ),
+    )
 
 
 def _handle_download(report_id: str, start_response):
@@ -411,6 +423,12 @@ def _render_home() -> str:
           <label for="billing_file">Arquivo CSV</label>
           <input id="billing_file" type="file" name="billing_file" accept=".csv" required>
 
+          <label for="company_name">Nome da empresa</label>
+          <input id="company_name" type="text" name="company_name" placeholder="Ex.: NSTECH">
+
+          <label for="project_name">Projeto / Assessment</label>
+          <input id="project_name" type="text" name="project_name" placeholder="Ex.: OCI Conversion Assessment">
+
           <label for="format">Formato</label>
           <select id="format" name="format">
             <option value="aws-invoice" selected>AWS Invoice CSV</option>
@@ -449,11 +467,26 @@ def _render_home() -> str:
 """
 
 
-def _render_result(report_id: str, report: dict[str, object]) -> str:
+def _render_result(
+    report_id: str,
+    report: dict[str, object],
+    company_name: str = "",
+    project_name: str = "",
+) -> str:
     preview = report["preview"]
     currency = html.escape(str(preview["currency"]))
     total_cost = f"{preview['total_cost']:,.2f}"
     raw_rows = int(preview["raw_rows"])
+    company_badge = (
+        f"<p><strong>Empresa na capa:</strong> {html.escape(company_name)}</p>"
+        if company_name
+        else ""
+    )
+    project_badge = (
+        f"<p><strong>Projeto na capa:</strong> {html.escape(project_name)}</p>"
+        if project_name
+        else ""
+    )
 
     top_services_markup = "".join(
         f"<li>{html.escape(item['service'])} <strong>{item['cost']:,.2f} {currency}</strong></li>"
@@ -601,6 +634,8 @@ def _render_result(report_id: str, report: dict[str, object]) -> str:
     <section class="panel">
       <h1>Relatorio pronto para download</h1>
       <p>O arquivo foi processado com sucesso. Abaixo esta uma previa rapida antes de baixar o Excel ou o PowerPoint.</p>
+      {company_badge}
+      {project_badge}
 
       <div class="preview-grid">
         <div class="stat">

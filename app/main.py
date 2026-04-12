@@ -33,6 +33,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="output/billing_report.xlsx",
         help="Caminho do arquivo Excel de saida.",
     )
+    parser.add_argument(
+        "--company-name",
+        default="",
+        help="Nome da empresa para exibir na capa do PowerPoint.",
+    )
+    parser.add_argument(
+        "--project-name",
+        default="",
+        help="Nome do projeto ou assessment para exibir na capa do PowerPoint.",
+    )
     return parser
 
 
@@ -52,6 +62,8 @@ def main() -> None:
         file_format=args.format,
         cloud=args.cloud,
         mapping_path=mapping_path,
+        company_name=args.company_name,
+        project_name=args.project_name,
     )
 
     print(f"Relatorio gerado com sucesso em: {result.output_path}")

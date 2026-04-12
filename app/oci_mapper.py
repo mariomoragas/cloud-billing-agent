@@ -10,6 +10,7 @@ def load_mapping_table(mapping_csv: Path) -> pd.DataFrame:
     required = {
         "source_cloud",
         "source_service",
+        "source_product_code",
         "source_pattern",
         "oci_service",
         "rule_type",
@@ -34,6 +35,7 @@ def build_oci_mapping(
         match = _find_best_match(
             cloud=service_row["cloud"],
             service_name=service_row["service_name_original"],
+            product_code=service_row.get("primary_product_code", ""),
             mapping_df=mapping_df,
         )
 
@@ -42,6 +44,7 @@ def build_oci_mapping(
                 {
                     "cloud": service_row["cloud"],
                     "service_name_original": service_row["service_name_original"],
+                    "primary_product_code": service_row.get("primary_product_code", ""),
                     "total_usage_quantity": service_row["total_usage_quantity"],
                     "primary_unit": service_row["primary_unit"],
                     "total_cost": service_row["total_cost"],
@@ -58,6 +61,7 @@ def build_oci_mapping(
             {
                 "cloud": service_row["cloud"],
                 "service_name_original": service_row["service_name_original"],
+                "primary_product_code": service_row.get("primary_product_code", ""),
                 "total_usage_quantity": service_row["total_usage_quantity"],
                 "primary_unit": service_row["primary_unit"],
                 "total_cost": service_row["total_cost"],
@@ -77,11 +81,20 @@ def build_oci_mapping(
 def _find_best_match(
     cloud: str,
     service_name: str,
+    product_code: str,
     mapping_df: pd.DataFrame,
 ) -> pd.Series | None:
     candidates = mapping_df[mapping_df["source_cloud"] == str(cloud).lower()].copy()
     if candidates.empty:
         return None
+
+    if str(product_code).strip():
+        exact_code = candidates[
+            candidates["source_product_code"].astype(str).str.lower()
+            == str(product_code).lower()
+        ]
+        if not exact_code.empty:
+            return exact_code.sort_values("confidence", ascending=False).iloc[0]
 
     exact = candidates[
         candidates["source_service"].astype(str).str.lower() == str(service_name).lower()

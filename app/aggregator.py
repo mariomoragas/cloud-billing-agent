@@ -11,6 +11,11 @@ def summarize_by_service(df: pd.DataFrame) -> pd.DataFrame:
         "primary_unit": ("usage_unit", lambda values: _most_common_nonempty(values)),
         "primary_currency": ("currency", lambda values: _most_common_nonempty(values)),
     }
+    if "product_code" in df.columns:
+        aggregations["primary_product_code"] = (
+            "product_code",
+            lambda values: _most_common_nonempty(values),
+        )
     if "cost_before_tax" in df.columns:
         aggregations["total_cost_before_tax"] = ("cost_before_tax", "sum")
     if "tax_amount" in df.columns:

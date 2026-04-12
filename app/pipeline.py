@@ -25,6 +25,8 @@ def process_billing_file(
     file_format: str,
     cloud: str,
     mapping_path: Path,
+    company_name: str = "",
+    project_name: str = "",
 ) -> Path:
     data_quality_df = pd.DataFrame()
 
@@ -61,6 +63,9 @@ def process_billing_file(
             service_summary_df=service_summary_df,
             region_summary_df=region_summary_df,
             oci_mapping_df=oci_mapping_df,
+            report_name=input_path.stem,
+            company_name=company_name,
+            project_name=project_name,
         )
     return ProcessResult(
         output_path=output_path,

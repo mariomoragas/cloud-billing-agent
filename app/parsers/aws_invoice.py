@@ -57,6 +57,7 @@ def load_aws_invoice_csv(csv_path: Path) -> ParserResult:
         {
             "cloud": "aws",
             "invoice_id": raw_df["InvoiceID"],
+            "product_code": raw_df["ProductCode"],
             "service_name_original": raw_df["ProductName"],
             "sku": raw_df["UsageType"],
             "region": _infer_region(raw_df),

@@ -4,11 +4,22 @@ from pathlib import Path
 
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart import BarChart, DoughnutChart, Reference
 from openpyxl.chart.label import DataLabelList
-from openpyxl.styles import Font
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 DEFAULT_FONT = "Verdana"
+TITLE_FILL = "C74634"
+SUBTITLE_FILL = "1B1B1B"
+CARD_FILL = "FBF7F4"
+CARD_BORDER = "E7D7CF"
+ACCENT_FILL = "C74634"
+ACCENT_SOFT_FILL = "E8B4AE"
+ACCENT_DARK_FILL = "8E2F23"
+TEXT_DARK = "1B1B1B"
+TEXT_MUTED = "5F5B57"
+TEXT_LIGHT = "FFFFFF"
 
 
 def write_billing_report(
@@ -64,6 +75,12 @@ def _format_headers(workbook) -> None:
             for cell in row:
                 is_header = cell.row == 1
                 cell.font = Font(name=DEFAULT_FONT, bold=is_header)
+                if is_header:
+                    cell.fill = PatternFill(fill_type="solid", fgColor=SUBTITLE_FILL)
+                    cell.font = Font(name=DEFAULT_FONT, bold=True, color=TEXT_LIGHT)
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                else:
+                    cell.alignment = Alignment(vertical="top")
 
 
 def _autosize_columns(workbook) -> None:
@@ -80,97 +97,211 @@ def _create_charts_sheet(workbook) -> None:
         del workbook["Charts"]
 
     charts_sheet = workbook.create_sheet("Charts")
-    charts_sheet["A1"] = "Graficos de Billing"
-    charts_sheet["A1"].font = Font(name=DEFAULT_FONT, bold=True, size=14)
-
+    _style_charts_canvas(charts_sheet)
+    _write_kpi_cards(workbook, charts_sheet)
     _add_service_cost_chart(workbook, charts_sheet)
     _add_service_cost_share_chart(workbook, charts_sheet)
     _add_region_cost_chart(workbook, charts_sheet)
     _add_optional_chart(
         workbook,
         charts_sheet,
-        sheet_name="purchase_option",
-        title="Custo por Modelo de Compra",
-        category_axis="Modelo",
-        anchor="X3",
-    )
-    _add_optional_chart(
-        workbook,
-        charts_sheet,
         sheet_name="linked_account_name",
-        title="Top Contas por Custo",
+        title="Top contas por custo",
         category_axis="Conta",
-        anchor="X25",
+        anchor="A50",
     )
     _add_optional_chart(
         workbook,
         charts_sheet,
-        sheet_name="operation",
-        title="Top Operacoes por Custo",
-        category_axis="Operacao",
-        anchor="A47",
+        sheet_name="usage_type",
+        title="Top usage types por custo",
+        category_axis="Usage type",
+        anchor="J50",
     )
+
+
+def _style_charts_canvas(charts_sheet) -> None:
+    charts_sheet.sheet_view.showGridLines = False
+    charts_sheet["A1"] = "ORACLE"
+    charts_sheet["A1"].font = Font(name=DEFAULT_FONT, bold=True, size=12, color=TEXT_LIGHT)
+    charts_sheet["A2"] = "Cloud Billing Conversion Dashboard"
+    charts_sheet["A2"].font = Font(name=DEFAULT_FONT, bold=True, size=20, color=TEXT_LIGHT)
+    charts_sheet["A3"] = "Resumo executivo para analise financeira, racionalizacao de servicos e conversao para OCI."
+    charts_sheet["A3"].font = Font(name=DEFAULT_FONT, italic=True, size=10, color="E5E7EB")
+    charts_sheet.merge_cells("A1:L1")
+    charts_sheet.merge_cells("A2:L2")
+    charts_sheet.merge_cells("A3:L3")
+
+    for cell_ref in ("A1", "A2", "A3"):
+        charts_sheet[cell_ref].alignment = Alignment(vertical="center")
+    for row in (1, 2):
+        for col in range(1, 13):
+            charts_sheet.cell(row=row, column=col).fill = PatternFill(
+                fill_type="solid",
+                fgColor=TITLE_FILL,
+            )
+    for col in range(1, 13):
+        charts_sheet.cell(row=3, column=col).fill = PatternFill(
+            fill_type="solid",
+            fgColor=SUBTITLE_FILL,
+        )
+
+    for column in range(1, 22):
+        charts_sheet.column_dimensions[get_column_letter(column)].width = 16
+    for row in range(1, 90):
+        charts_sheet.row_dimensions[row].height = 22
+
+
+def _write_kpi_cards(workbook, charts_sheet) -> None:
+    service_sheet = workbook["Resumo_Servicos"]
+    mapping_sheet = workbook["Mapeamento_OCI"]
+    raw_sheet = workbook["Raw_Data"]
+
+    total_cost = _sum_column(service_sheet, "D")
+    service_count = max(service_sheet.max_row - 1, 0)
+    raw_rows = max(raw_sheet.max_row - 1, 0)
+    unmapped_count = _count_matching(mapping_sheet, "G", "REVIEW_REQUIRED")
+
+    cards = [
+        ("A6:C9", "Custo total", _format_currency(total_cost), ACCENT_FILL, TEXT_LIGHT),
+        ("D6:F9", "Servicos distintos", f"{service_count:,}", CARD_FILL, TEXT_DARK),
+        ("G6:I9", "Linhas analisadas", f"{raw_rows:,}", CARD_FILL, TEXT_DARK),
+        ("J6:L9", "Nao mapeados", f"{unmapped_count:,}", ACCENT_DARK_FILL, TEXT_LIGHT),
+    ]
+
+    for cell_range, label, value, fill_color, font_color in cards:
+        charts_sheet.merge_cells(cell_range)
+        top_left = charts_sheet[cell_range.split(":")[0]]
+        top_left.value = f"{label}\n{value}"
+        top_left.font = Font(name=DEFAULT_FONT, bold=True, size=14, color=font_color)
+        top_left.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        top_left.fill = PatternFill(fill_type="solid", fgColor=fill_color)
+
+
+def _sum_column(worksheet, column_letter: str) -> float:
+    total = 0.0
+    for row in range(2, worksheet.max_row + 1):
+        value = worksheet[f"{column_letter}{row}"].value
+        if isinstance(value, (int, float)):
+            total += float(value)
+    return total
+
+
+def _count_matching(worksheet, column_letter: str, expected: str) -> int:
+    count = 0
+    for row in range(2, worksheet.max_row + 1):
+        value = worksheet[f"{column_letter}{row}"].value
+        if str(value or "").strip() == expected:
+            count += 1
+    return count
+
+
+def _format_currency(value: float) -> str:
+    return f"USD {value:,.2f}"
 
 
 def _add_service_cost_chart(workbook, charts_sheet) -> None:
-    service_sheet = workbook["Resumo_Servicos"]
+    service_sheet = _create_ranked_sheet(
+        workbook,
+        title="Chart_Service_Cost",
+        source_sheet="Resumo_Servicos",
+        category_col=2,
+        value_col=4,
+        top_n=8,
+    )
     chart = BarChart()
-    chart.title = "Top 10 Servicos por Custo"
-    chart.y_axis.title = "Custo"
-    chart.x_axis.title = "Servico"
-    chart.height = 10
-    chart.width = 20
+    chart.type = "bar"
+    chart.style = 10
+    chart.title = "Top servicos por custo"
+    chart.y_axis.title = "Servico"
+    chart.x_axis.title = "Custo total"
+    chart.height = 11
+    chart.width = 8.8
+    chart.legend = None
+    chart.varyColors = False
+    chart.gapWidth = 45
+    chart.x_axis.numFmt = '#,##0.00'
 
-    max_row = min(service_sheet.max_row, 11)
+    max_row = service_sheet.max_row
     if max_row < 2:
         return
 
-    data = Reference(service_sheet, min_col=4, min_row=1, max_row=max_row)
+    data = Reference(service_sheet, min_col=2, min_row=1, max_row=max_row)
     categories = Reference(service_sheet, min_col=2, min_row=2, max_row=max_row)
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(categories)
-    charts_sheet.add_chart(chart, "A3")
+    chart.dataLabels = DataLabelList()
+    chart.dataLabels.showVal = True
+    chart.series[0].graphicalProperties.solidFill = ACCENT_FILL
+    chart.series[0].graphicalProperties.line.solidFill = ACCENT_FILL
+    charts_sheet.add_chart(chart, "A12")
 
 
 def _add_region_cost_chart(workbook, charts_sheet) -> None:
-    region_sheet = workbook["Resumo_Regioes"]
+    region_sheet = _create_ranked_sheet(
+        workbook,
+        title="Chart_Region_Cost",
+        source_sheet="Resumo_Regioes",
+        category_col=2,
+        value_col=3,
+        top_n=6,
+    )
     chart = BarChart()
-    chart.title = "Top Regioes por Custo"
-    chart.y_axis.title = "Custo"
-    chart.x_axis.title = "Regiao"
-    chart.height = 10
-    chart.width = 20
+    chart.type = "bar"
+    chart.style = 10
+    chart.title = "Top regioes por custo"
+    chart.y_axis.title = "Regiao"
+    chart.x_axis.title = "Custo total"
+    chart.height = 11
+    chart.width = 8.8
+    chart.legend = None
+    chart.gapWidth = 45
+    chart.x_axis.numFmt = '#,##0.00'
 
-    max_row = min(region_sheet.max_row, 11)
+    max_row = region_sheet.max_row
     if max_row < 2:
         return
 
-    data = Reference(region_sheet, min_col=3, min_row=1, max_row=max_row)
+    data = Reference(region_sheet, min_col=2, min_row=1, max_row=max_row)
     categories = Reference(region_sheet, min_col=2, min_row=2, max_row=max_row)
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(categories)
-    charts_sheet.add_chart(chart, "A25")
+    chart.dataLabels = DataLabelList()
+    chart.dataLabels.showVal = True
+    chart.series[0].graphicalProperties.solidFill = ACCENT_SOFT_FILL
+    chart.series[0].graphicalProperties.line.solidFill = ACCENT_SOFT_FILL
+    charts_sheet.add_chart(chart, "J12")
 
 
 def _add_service_cost_share_chart(workbook, charts_sheet) -> None:
-    service_sheet = workbook["Resumo_Servicos"]
-    max_row = min(service_sheet.max_row, 11)
+    service_sheet = _create_ranked_sheet(
+        workbook,
+        title="Chart_Service_Share",
+        source_sheet="Resumo_Servicos",
+        category_col=2,
+        value_col=4,
+        top_n=5,
+    )
+    max_row = service_sheet.max_row
     if max_row < 2:
         return
 
-    chart = PieChart()
-    chart.title = "Participacao Percentual do Custo por Servico"
+    chart = DoughnutChart()
+    chart.title = "Composicao do custo por servico"
     chart.height = 12
-    chart.width = 18
+    chart.width = 8.8
+    chart.holeSize = 55
+    chart.varyColors = True
 
-    data = Reference(service_sheet, min_col=4, min_row=1, max_row=max_row)
+    data = Reference(service_sheet, min_col=2, min_row=1, max_row=max_row)
     categories = Reference(service_sheet, min_col=2, min_row=2, max_row=max_row)
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(categories)
     chart.dataLabels = DataLabelList()
     chart.dataLabels.showPercent = True
+    chart.dataLabels.showCatName = True
     chart.dataLabels.showLeaderLines = True
-    charts_sheet.add_chart(chart, "X47")
+    charts_sheet.add_chart(chart, "A31")
 
 
 def _add_optional_chart(
@@ -184,20 +315,73 @@ def _add_optional_chart(
     if sheet_name not in workbook.sheetnames:
         return
 
-    data_sheet = workbook[sheet_name]
-    max_row = min(data_sheet.max_row, 11)
+    data_sheet = _create_ranked_sheet(
+        workbook,
+        title=f"Chart_{sheet_name}",
+        source_sheet=sheet_name,
+        category_col=1,
+        value_col=3,
+        top_n=8,
+    )
+    max_row = data_sheet.max_row
     if max_row < 2:
         return
 
     chart = BarChart()
+    chart.type = "bar"
+    chart.style = 10
     chart.title = title
-    chart.y_axis.title = "Custo"
+    chart.y_axis.title = category_axis
     chart.x_axis.title = category_axis
-    chart.height = 10
-    chart.width = 20
+    chart.height = 11
+    chart.width = 8.8
+    chart.legend = None
+    chart.gapWidth = 45
 
-    data = Reference(data_sheet, min_col=3, min_row=1, max_row=max_row)
+    data = Reference(data_sheet, min_col=2, min_row=1, max_row=max_row)
     categories = Reference(data_sheet, min_col=1, min_row=2, max_row=max_row)
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(categories)
+    chart.dataLabels = DataLabelList()
+    chart.dataLabels.showVal = True
+    chart.series[0].graphicalProperties.solidFill = "9CA3AF"
+    chart.series[0].graphicalProperties.line.solidFill = "9CA3AF"
     charts_sheet.add_chart(chart, anchor)
+
+
+def _create_ranked_sheet(
+    workbook,
+    title: str,
+    source_sheet: str,
+    category_col: int,
+    value_col: int,
+    top_n: int,
+):
+    if title in workbook.sheetnames:
+        del workbook[title]
+
+    source = workbook[source_sheet]
+    rows: list[tuple[str, float]] = []
+    for row in range(2, source.max_row + 1):
+        category = str(source.cell(row=row, column=category_col).value or "").strip()
+        if not category:
+            category = "UNSPECIFIED"
+        value = source.cell(row=row, column=value_col).value
+        if isinstance(value, (int, float)):
+            rows.append((category, float(value)))
+
+    rows.sort(key=lambda item: item[1], reverse=True)
+    top_rows = rows[:top_n]
+    remaining = rows[top_n:]
+    others_total = sum(value for _, value in remaining)
+    if others_total > 0:
+        top_rows.append(("Outros", others_total))
+
+    worksheet = workbook.create_sheet(title)
+    worksheet.sheet_state = "hidden"
+    worksheet["A1"] = "Categoria"
+    worksheet["B1"] = "Valor"
+    for index, (category, value) in enumerate(top_rows, start=2):
+        worksheet[f"A{index}"] = category
+        worksheet[f"B{index}"] = value
+    return worksheet
