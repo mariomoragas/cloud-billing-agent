@@ -210,3 +210,43 @@ gcp,Key Management Service,,.*,OCI Vault,pattern,0.94
 gcp,Cloud KMS,,.*,OCI Vault,exact,0.94
 gcp,Security Command Center,,.*,OCI Cloud Guard,pattern,0.88
 gcp,Cloud Security Command Center,,.*,OCI Cloud Guard,exact,0.88
+aws,EBS,,^EBS$,OCI Block Volumes,pattern,0.95
+aws,Amazon Elastic Container Service,,^Amazon Elastic Container Service .*Fargate.*,Oracle Container Instances; Oracle Container Engine for Kubernetes,pattern,0.93
+aws,Amazon Elastic Container Service for Kubernetes,,^Amazon Elastic Container Service for Kubernetes .*,Oracle Container Engine for Kubernetes; OCI Registry,pattern,0.94
+aws,Bandwidth,,^Bandwidth$,FastConnect; OCI Data Transfer,exact,0.72
+aws,Compute Savings Plans,,^.*Savings Plans.*$,OCI Cost Analysis; REVIEW_REQUIRED,pattern,0.45
+aws,Amazon Simple Storage Service,,^Amazon Simple Storage Service .*Requests.*$,Object Storage,pattern,0.96
+aws,Amazon Simple Storage Service,,^Amazon Simple Storage Service .*TimedStorage.*$,Object Storage,pattern,0.96
+aws,Amazon Simple Storage Service,,^Amazon Simple Storage Service .*GeneralPurposeBuckets.*$,Object Storage,pattern,0.9
+aws,Amazon Managed Streaming for Apache Kafka,,^Amazon Managed Streaming for Apache Kafka .*$,OCI Streaming,pattern,0.9
+aws,Amazon Virtual Private Cloud,,^Amazon Virtual Private Cloud .*CreateVpnConnection.*$,VPN Connect,pattern,0.95
+aws,Amazon Virtual Private Cloud,,^Amazon Virtual Private Cloud .*TransitGatewayVPN.*$,VPN Connect,pattern,0.92
+aws,Virtual Private Cloud,,^Virtual Private Cloud$,Virtual Cloud Network (VCN),exact,0.95
+aws,Amazon ElastiCache for Redis,,^Amazon ElastiCache for Redis$,Oracle Cloud Infrastructure Cache; OCI Search with OpenSearch,exact,0.9
+aws,Amazon Lightsail,,^Amazon Lightsail .*$,OCI Virtual Machine Instances,pattern,0.82
+aws,Amazon Inspector,,^Amazon Inspector .*$,OCI Cloud Guard,pattern,0.9
+aws,AWS CodeArtifact,,^AWS CodeArtifact .*$,OCI DevOps Artifact Registry,pattern,0.82
+aws,Route 53,,^Route 53$,OCI Domain Name System (DNS); OCI Traffic Management,exact,0.95
+aws,Amazon API Gateway,,^Amazon API Gateway .*$,OCI API Gateway,pattern,0.95
+aws,AWS Key Management Service,,^AWS Key Management Service .*$,OCI Vault,pattern,0.95
+aws,AWS WAF,,^AWS WAF .*$,Web Application Firewall,pattern,0.95
+aws,Amazon Cognito,,^Amazon Cognito .*$,OCI IAM,pattern,0.8
+aws,AWS Cost Explorer,,^AWS Cost Explorer .*$,OCI Cost Analysis,pattern,0.95
+aws,Amazon Textract,,^Amazon Textract .*$,OCI Document Understanding,pattern,0.8
+aws,AWS Config,,^AWS Config .*$,OCI Cloud Guard; OCI Audit,pattern,0.9
+aws,AWS Lambda,,^AWS Lambda .*$,Oracle Functions,pattern,0.95
+aws,Amazon Kinesis,,^Amazon Kinesis .*$,OCI Streaming,pattern,0.9
+aws,Amazon Kinesis Firehose,,^Amazon Kinesis Firehose .*$,OCI Streaming,pattern,0.9
+aws,AWS Backup,,^AWS Backup .*$,OCI Block Volume Backups; Object Storage,pattern,0.86
+aws,Amazon RDS Proxy,,^Amazon RDS Proxy$,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service; OCI PostgreSQL,exact,0.85
+aws,AWS End User Messaging,,^AWS End User Messaging .*$,OCI Notifications; REVIEW_REQUIRED,pattern,0.5
+aws,AWS X-Ray,,^AWS X-Ray .*$,OCI Application Performance Monitoring,pattern,0.88
+aws,Amazon Redshift,,^Amazon Redshift .*$,Oracle Autonomous Data Warehouse (ADW); Oracle MySQL HeatWave,pattern,0.88
+aws,AWS CloudTrail,,^AWS CloudTrail .*$,OCI Audit,pattern,0.95
+aws,AWS CloudFormation,,^AWS CloudFormation .*$,OCI Resource Manager,pattern,0.94
+aws,AWS Glue,,^AWS Glue .*$,OCI Data Catalog,pattern,0.88
+aws,Amazon Elastic File System,,^Amazon Elastic File System .*$,File Storage,pattern,0.92
+aws,AWS Security Hub,,^AWS Security Hub .*$,OCI Cloud Guard,pattern,0.9
+aws,Amazon Simple Notification Service,,^Amazon Simple Notification Service .*$,OCI Notifications,pattern,0.95
+aws,Amazon Simple Queue Service,,^Amazon Simple Queue Service .*$,OCI Queue,pattern,0.95
+aws,Amazon Rekognition,,^Amazon Rekognition .*$,OCI Vision,pattern,0.8

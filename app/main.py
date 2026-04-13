@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
+from app.config import load_local_config
 from app.pipeline import process_billing_file
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Processa billing CSV e gera Excel com graficos e mapeamento OCI."
+        description="Processa billing (CSV/PDF) e gera Excel com graficos e mapeamento OCI."
     )
-    parser.add_argument("--input", required=True, help="Caminho do CSV de billing.")
+    parser.add_argument("--input", required=True, help="Caminho do arquivo de billing (CSV/PDF).")
     parser.add_argument(
         "--cloud",
         default="aws",
@@ -20,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--format",
         default="generic",
-        choices=["generic", "aws-invoice"],
+        choices=["generic", "aws-invoice", "aws-billing-pdf"],
         help="Formato do arquivo de entrada.",
     )
     parser.add_argument(
@@ -43,10 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Nome do projeto ou assessment para exibir na capa do PowerPoint.",
     )
+    parser.add_argument(
+        "--llm-model",
+        default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        help="Modelo OpenAI usado para analise FinOps via LLM.",
+    )
     return parser
 
 
 def main() -> None:
+    load_local_config()
     parser = build_parser()
     args = parser.parse_args()
 
@@ -64,6 +72,7 @@ def main() -> None:
         mapping_path=mapping_path,
         company_name=args.company_name,
         project_name=args.project_name,
+        llm_model=args.llm_model,
     )
 
     print(f"Relatorio gerado com sucesso em: {result.output_path}")

@@ -10,8 +10,10 @@ from app.aggregator import (
     summarize_by_service,
 )
 from app.excel_writer import write_billing_report
+from app.llm_report import build_llm_report_artifacts
 from app.normalizer import load_and_normalize_csv
 from app.oci_mapper import build_oci_mapping, load_mapping_table
+from app.parsers.aws_billing_pdf import load_aws_billing_pdf
 from app.parsers.aws_invoice import load_aws_invoice_csv
 from app.powerpoint_writer import write_powerpoint_report
 from app.report_types import ProcessResult
@@ -27,6 +29,7 @@ def process_billing_file(
     mapping_path: Path,
     company_name: str = "",
     project_name: str = "",
+    llm_model: str = "gpt-4o-mini",
 ) -> Path:
     data_quality_df = pd.DataFrame()
 
@@ -34,6 +37,10 @@ def process_billing_file(
         invoice_result = load_aws_invoice_csv(input_path)
         raw_df = invoice_result.dataframe
         data_quality_df = invoice_result.data_quality
+    elif file_format == "aws-billing-pdf":
+        pdf_result = load_aws_billing_pdf(input_path)
+        raw_df = pdf_result.dataframe
+        data_quality_df = pdf_result.data_quality
     else:
         raw_df = load_and_normalize_csv(input_path, default_cloud=cloud)
 
@@ -43,8 +50,16 @@ def process_billing_file(
     oci_mapping_df = build_oci_mapping(service_summary_df, mapping_df)
     extra_summaries = (
         build_aws_enterprise_summaries(raw_df)
-        if file_format == "aws-invoice"
+        if file_format in {"aws-invoice", "aws-billing-pdf"}
         else {}
+    )
+    llm_artifacts = build_llm_report_artifacts(
+        raw_df=raw_df,
+        service_summary_df=service_summary_df,
+        region_summary_df=region_summary_df,
+        oci_mapping_df=oci_mapping_df,
+        source_name=input_path.name,
+        llm_model=llm_model,
     )
 
     write_billing_report(
@@ -55,6 +70,10 @@ def process_billing_file(
         oci_mapping_df=oci_mapping_df,
         extra_summaries=extra_summaries,
         data_quality_df=data_quality_df,
+        llm_report_df=llm_artifacts.summary_df,
+        llm_migration_df=llm_artifacts.migration_df,
+        llm_recommendations_df=llm_artifacts.recommendations_df,
+        llm_confidence_df=llm_artifacts.confidence_df,
     )
     if presentation_path is not None:
         write_powerpoint_report(
@@ -63,6 +82,10 @@ def process_billing_file(
             service_summary_df=service_summary_df,
             region_summary_df=region_summary_df,
             oci_mapping_df=oci_mapping_df,
+            llm_report_df=llm_artifacts.summary_df,
+            llm_migration_df=llm_artifacts.migration_df,
+            llm_recommendations_df=llm_artifacts.recommendations_df,
+            llm_confidence_df=llm_artifacts.confidence_df,
             report_name=input_path.stem,
             company_name=company_name,
             project_name=project_name,
@@ -75,4 +98,8 @@ def process_billing_file(
         region_summary_df=region_summary_df,
         oci_mapping_df=oci_mapping_df,
         data_quality_df=data_quality_df,
+        llm_report_df=llm_artifacts.summary_df,
+        llm_migration_df=llm_artifacts.migration_df,
+        llm_recommendations_df=llm_artifacts.recommendations_df,
+        llm_confidence_df=llm_artifacts.confidence_df,
     )

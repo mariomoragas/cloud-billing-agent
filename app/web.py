@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import cgi
 import html
+import os
 import tempfile
 import traceback
 import uuid
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Iterable
 from wsgiref.simple_server import make_server
 
+from app.config import load_local_config
 from app.pipeline import process_billing_file
 from app.static import guess_content_type, resolve_font_asset
 
@@ -63,11 +65,12 @@ def _handle_process(environ, start_response):
     cloud = form.getfirst("cloud", "aws")
     company_name = form.getfirst("company_name", "").strip()
     project_name = form.getfirst("project_name", "").strip()
+    llm_model = form.getfirst("llm_model", os.getenv("OPENAI_MODEL", "gpt-4o-mini")).strip()
 
     if uploaded_file is None or not getattr(uploaded_file, "filename", ""):
         return _html_response(
             start_response,
-            _render_error("Selecione um arquivo CSV antes de continuar."),
+            _render_error("Selecione um arquivo de billing (CSV ou PDF) antes de continuar."),
             status="400 Bad Request",
         )
 
@@ -95,6 +98,7 @@ def _handle_process(environ, start_response):
             mapping_path=MAPPING_PATH,
             company_name=company_name,
             project_name=project_name,
+            llm_model=llm_model,
         )
 
     REPORTS[report_id] = {
@@ -409,9 +413,9 @@ def _render_home() -> str:
     </div>
     <section class="hero">
       <div class="eyebrow">Cloud Billing Agent</div>
-      <h1>Upload do billing e Excel pronto</h1>
+      <h1>Upload de billing em csv e pdf</h1>
       <p class="sub">
-        Envie o CSV da fatura, escolha o formato e gere Excel e PowerPoint
+        Envie o CSV ou PDF da fatura, escolha o CSP correto e gere Excel e PowerPoint
         com resumos, graficos, mapeamento OCI e validacoes de qualidade.
       </p>
     </section>
@@ -421,10 +425,10 @@ def _render_home() -> str:
         <h2 class="card-title">Gerar relatorio</h2>
         <form action="/process" method="post" enctype="multipart/form-data">
           <label for="billing_file">Arquivo CSV</label>
-          <input id="billing_file" type="file" name="billing_file" accept=".csv" required>
+          <input id="billing_file" type="file" name="billing_file" accept=".csv,.pdf" required>
 
           <label for="company_name">Nome da empresa</label>
-          <input id="company_name" type="text" name="company_name" placeholder="Ex.: NSTECH">
+          <input id="company_name" type="text" name="company_name" placeholder="Ex.: Tractian">
 
           <label for="project_name">Projeto / Assessment</label>
           <input id="project_name" type="text" name="project_name" placeholder="Ex.: OCI Conversion Assessment">
@@ -432,6 +436,7 @@ def _render_home() -> str:
           <label for="format">Formato</label>
           <select id="format" name="format">
             <option value="aws-invoice" selected>AWS Invoice CSV</option>
+            <option value="aws-billing-pdf">AWS Billing PDF</option>
             <option value="generic">CSV generico</option>
           </select>
 
@@ -442,11 +447,16 @@ def _render_home() -> str:
             <option value="gcp">GCP</option>
           </select>
 
+          <label for="llm_model">Modelo LLM (OpenAI)</label>
+          <input id="llm_model" type="text" name="llm_model" value="gpt-4o-mini" placeholder="Ex.: gpt-4o-mini">
+
           <button type="submit">Processar relatorios</button>
         </form>
         <p class="note">
           Para AWS Invoice, a regra padrao remove linhas sem <code>LinkedAccountName</code>
-          antes da analise.
+          antes da analise. Para AWS Billing PDF, o parser extrai linhas de uso/custo do layout
+          de fatura consolidada da AWS Billing and Cost Management. A analise LLM usa
+          <code>OPENAI_API_KEY</code> quando disponivel.
         </p>
       </div>
 
@@ -721,6 +731,7 @@ def _text_response(start_response, content: str, status: str = "200 OK") -> Iter
 
 
 def main() -> None:
+    load_local_config()
     url = f"http://{HOST}:{PORT}"
     print(f"Cloud Billing Agent Web UI disponivel em {url}")
     print("Pressione Ctrl+C para encerrar.")

@@ -2,13 +2,14 @@
 
 Esqueleto funcional em Python para:
 
-- ler um CSV de billing de AWS, Azure ou GCP
+- ler billing em CSV (multicloud) e PDF (AWS Billing and Cost Management)
 - disponibilizar uma interface web local com upload de arquivo
 - normalizar colunas para um modelo comum
 - consolidar custo e quantidade por servico e por regiao
 - gerar um Excel com abas de dados, resumo, graficos e mapeamento OCI
 - gerar um PowerPoint executivo com slides e graficos principais
 - apontar servicos sem de-para para revisao manual
+- gerar analise FinOps/migracao OCI via LLM (com fallback local quando API indisponivel)
 
 ## Requisitos
 
@@ -27,6 +28,27 @@ pip install -r requirements.txt
 ```powershell
 python -m app.main --input .\seu_billing.csv --cloud aws
 ```
+
+Para incluir analise FinOps via LLM no relatorio:
+
+```powershell
+$env:OPENAI_API_KEY="sua_chave_openai"
+python -m app.main --input .\seu_billing.csv --cloud aws --llm-model gpt-4o-mini
+```
+
+Se `OPENAI_API_KEY` nao estiver definida, a aplicacao gera um fallback local (estimativo)
+e ainda preenche as abas/slides de analise LLM.
+
+### Configuracao via arquivo `.env` (CLI e Web)
+
+Voce pode criar um arquivo `.env` na raiz do projeto com:
+
+```text
+OPENAI_API_KEY=sua_chave_openai
+OPENAI_MODEL=gpt-4o-mini
+```
+
+A aplicacao carrega esse arquivo automaticamente ao iniciar (`python -m app.main` e `python -m app.web`).
 
 ## Interface web local
 
@@ -50,7 +72,7 @@ http://127.0.0.1:8501
 
 A interface permite:
 
-- enviar o CSV
+- enviar CSV ou PDF
 - escolher o formato do arquivo
 - baixar o Excel pronto no navegador
 - baixar o PowerPoint executivo no navegador
@@ -74,6 +96,15 @@ python -m app.main `
   --output .\output\billing_report_aws_invoice.xlsx
 ```
 
+Exemplo com AWS Billing PDF:
+
+```powershell
+python -m app.main `
+  --input "C:\caminho\billing_aws.pdf" `
+  --format aws-billing-pdf `
+  --output .\output\billing_report_aws_pdf.xlsx
+```
+
 Exemplo com caminhos explicitos:
 
 ```powershell
@@ -88,6 +119,7 @@ python -m app.main `
 
 - `generic`: CSV com aliases de colunas comuns de billing multicloud
 - `aws-invoice`: CSV de invoice consolidada da AWS
+- `aws-billing-pdf`: PDF de billing consolidado da AWS Billing and Cost Management
 
 ## Colunas aceitas
 
@@ -150,6 +182,8 @@ Slides incluidos:
 - top servicos por custo
 - participacao percentual por servico
 - top regioes por custo
+- mapeamento consolidado AWS -> OCI
+- (quando habilitado) secao LLM FinOps com baseline/projecao/ROI e plano de migracao
 - servicos sem mapeamento OCI
 
 ## Abas geradas no Excel
@@ -158,12 +192,25 @@ Slides incluidos:
 - `Resumo_Servicos`
 - `Resumo_Regioes`
 - `Mapeamento_OCI`
+- `LLM_Resumo`
+- `LLM_Migracao`
+- `LLM_Recomendacoes`
+- `LLM_Confianca`
 - `Pendencias`
 - `Charts`
+
+## Analise LLM no PowerPoint
+
+Quando habilitada, o deck inclui slides adicionais com:
+
+- baseline e projecoes OCI (conservador/base/agressivo)
+- economia, ROI e payback
+- plano de migracao em fases
+- recomendacoes de arquitetura e achados FinOps
 
 ## Proximos passos sugeridos
 
 - adicionar parser dedicado para Azure Cost Export
 - adicionar parser dedicado para GCP Billing Export
-- adicionar leitura de PDF com `pdfplumber`
-- integrar um LLM apenas para sugerir mapeamentos OCI em casos nao cobertos
+- permitir escolha de provedor LLM e endpoint via UI
+- enriquecer parser PDF AWS para mais variacoes de layout/idioma

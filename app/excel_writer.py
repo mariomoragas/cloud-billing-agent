@@ -30,6 +30,10 @@ def write_billing_report(
     oci_mapping_df: pd.DataFrame,
     extra_summaries: dict[str, pd.DataFrame] | None = None,
     data_quality_df: pd.DataFrame | None = None,
+    llm_report_df: pd.DataFrame | None = None,
+    llm_migration_df: pd.DataFrame | None = None,
+    llm_recommendations_df: pd.DataFrame | None = None,
+    llm_confidence_df: pd.DataFrame | None = None,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -40,6 +44,14 @@ def write_billing_report(
         oci_mapping_df.to_excel(writer, sheet_name="Mapeamento_OCI", index=False)
         if data_quality_df is not None and not data_quality_df.empty:
             data_quality_df.to_excel(writer, sheet_name="Data_Quality", index=False)
+        if llm_report_df is not None and not llm_report_df.empty:
+            llm_report_df.to_excel(writer, sheet_name="LLM_Resumo", index=False)
+        if llm_migration_df is not None and not llm_migration_df.empty:
+            llm_migration_df.to_excel(writer, sheet_name="LLM_Migracao", index=False)
+        if llm_recommendations_df is not None and not llm_recommendations_df.empty:
+            llm_recommendations_df.to_excel(writer, sheet_name="LLM_Recomendacoes", index=False)
+        if llm_confidence_df is not None and not llm_confidence_df.empty:
+            llm_confidence_df.to_excel(writer, sheet_name="LLM_Confianca", index=False)
         if extra_summaries:
             for sheet_name, summary_df in extra_summaries.items():
                 if summary_df.empty:

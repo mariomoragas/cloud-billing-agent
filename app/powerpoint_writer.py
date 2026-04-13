@@ -35,6 +35,10 @@ def write_powerpoint_report(
     service_summary_df: pd.DataFrame,
     region_summary_df: pd.DataFrame,
     oci_mapping_df: pd.DataFrame,
+    llm_report_df: pd.DataFrame | None = None,
+    llm_migration_df: pd.DataFrame | None = None,
+    llm_recommendations_df: pd.DataFrame | None = None,
+    llm_confidence_df: pd.DataFrame | None = None,
     report_name: str = "",
     company_name: str = "",
     project_name: str = "",
@@ -43,24 +47,56 @@ def write_powerpoint_report(
 
     presentation = Presentation()
     _configure_presentation(presentation)
+    slide_number = 1
     _add_title_slide(presentation, raw_df, report_name, company_name, project_name)
+    slide_number += 1
     _add_section_slide(
         presentation,
         title="Executive Summary",
         subtitle="Financial highlights and OCI conversion overview",
-        slide_number=2,
+        slide_number=slide_number,
     )
-    _add_kpi_slide(presentation, raw_df, service_summary_df, oci_mapping_df, slide_number=3)
-    _add_top_services_slide(presentation, service_summary_df, slide_number=4)
-    _add_service_share_slide(presentation, service_summary_df, slide_number=5)
-    _add_region_slide(presentation, region_summary_df, slide_number=6)
+    slide_number += 1
+    _add_kpi_slide(presentation, raw_df, service_summary_df, oci_mapping_df, slide_number=slide_number)
+    slide_number += 1
+    _add_top_services_slide(presentation, service_summary_df, slide_number=slide_number)
+    slide_number += 1
+    _add_service_share_slide(presentation, service_summary_df, slide_number=slide_number)
+    slide_number += 1
+    _add_region_slide(presentation, region_summary_df, slide_number=slide_number)
+    slide_number += 1
+    _add_mapping_slide(presentation, oci_mapping_df, slide_number=slide_number)
+    slide_number += 1
+    if llm_report_df is not None and not llm_report_df.empty:
+        _add_section_slide(
+            presentation,
+            title="LLM FinOps Analysis",
+            subtitle="Baseline, OCI projection, ROI and migration plan synthesized by LLM",
+            slide_number=slide_number,
+        )
+        slide_number += 1
+        _add_llm_overview_slide(
+            presentation,
+            llm_report_df=llm_report_df,
+            llm_confidence_df=llm_confidence_df,
+            slide_number=slide_number,
+        )
+        slide_number += 1
+        _add_llm_plan_slide(
+            presentation,
+            llm_migration_df=llm_migration_df,
+            llm_recommendations_df=llm_recommendations_df,
+            slide_number=slide_number,
+        )
+        slide_number += 1
     _add_section_slide(
         presentation,
         title="OCI Review Focus",
         subtitle="Services requiring manual validation before conversion",
-        slide_number=7,
+        slide_number=slide_number,
     )
-    _add_unmapped_slide(presentation, oci_mapping_df, slide_number=8)
+    slide_number += 1
+    _add_unmapped_slide(presentation, oci_mapping_df, slide_number=slide_number)
     presentation.save(output_path)
 
 
@@ -323,6 +359,154 @@ def _add_unmapped_slide(
         _style_paragraph(paragraph, bold=False, size=17, color=_rgb_tuple(COLOR_TEXT))
 
 
+def _add_mapping_slide(
+    presentation: Presentation,
+    oci_mapping_df: pd.DataFrame,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "AWS to OCI Mapping (Consolidated)", slide_number)
+    _add_subtitle(
+        slide,
+        "Consolidated pairs from Mapeamento_OCI (source service -> OCI service)",
+        0.76,
+        1.18,
+        8.6,
+    )
+
+    mapping_df = _consolidate_mapping_pairs(oci_mapping_df)
+    _add_side_note(
+        slide,
+        "Repeated lines are grouped by identical source and destination.",
+        9.6,
+        1.6,
+        2.85,
+        2.0,
+    )
+
+    box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(4.55))
+    frame = box.text_frame
+    frame.word_wrap = True
+
+    if mapping_df.empty:
+        paragraph = frame.paragraphs[0]
+        paragraph.text = "No mapped services found for this report."
+        _style_paragraph(paragraph, bold=False, size=18, color=_rgb_tuple(COLOR_TEXT))
+        return
+
+    max_lines = 12
+    visible = mapping_df.head(max_lines)
+    first = True
+    for _, row in visible.iterrows():
+        paragraph = frame.paragraphs[0] if first else frame.add_paragraph()
+        first = False
+        paragraph.text = f"{row['service_name_original']} --> {row['oci_service']}"
+        _style_paragraph(paragraph, bold=False, size=15, color=_rgb_tuple(COLOR_TEXT))
+
+    remaining = len(mapping_df) - len(visible)
+    if remaining > 0:
+        paragraph = frame.add_paragraph()
+        paragraph.text = f"+ {remaining} additional consolidated mappings not shown."
+        _style_paragraph(paragraph, bold=True, size=13, color=_rgb_tuple(COLOR_MUTED))
+
+
+def _add_llm_overview_slide(
+    presentation: Presentation,
+    llm_report_df: pd.DataFrame,
+    llm_confidence_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "LLM Baseline, Projection and ROI", slide_number)
+    _add_subtitle(slide, "Numbers and assumptions generated from billing + OCI mapping context", 0.76, 1.18, 8.0)
+
+    current_total = _llm_value(llm_report_df, "baseline", "current_total_cost")
+    base_total = _llm_value(llm_report_df, "projection", "base_total")
+    savings_pct = _llm_value(llm_report_df, "savings", "base_savings_pct")
+    roi_pct = _llm_value(llm_report_df, "business_case", "roi_pct")
+    payback = _llm_value(llm_report_df, "business_case", "payback_months")
+    currency = str(_llm_value(llm_report_df, "baseline", "currency", default="USD"))
+    analysis_mode = str(_llm_value(llm_report_df, "meta", "analysis_mode", default="unknown"))
+
+    cards = [
+        ("Baseline", f"{current_total:,.2f} {currency}" if isinstance(current_total, (int, float)) else str(current_total)),
+        ("OCI Base", f"{base_total:,.2f} {currency}" if isinstance(base_total, (int, float)) else str(base_total)),
+        ("Savings Base", f"{savings_pct:.2f}%" if isinstance(savings_pct, (int, float)) else str(savings_pct)),
+    ]
+    for index, (label, value) in enumerate(cards):
+        _add_kpi_card(slide, label, value, 0.76 + (index * 2.95), 1.6)
+
+    summary = str(_llm_value(llm_report_df, "summary", "executive_summary", default="")).strip()
+    if not summary:
+        summary = "No executive summary returned."
+    _add_insight_box(slide, summary, 0.76, 4.0, 8.7, 1.7)
+
+    confidence_note = "No confidence information."
+    if llm_confidence_df is not None and not llm_confidence_df.empty:
+        preview = []
+        for _, row in llm_confidence_df.head(3).iterrows():
+            preview.append(f"{row.get('topic', '')}: {row.get('level', '')}")
+        confidence_note = " | ".join(preview)
+    _add_side_note(
+        slide,
+        f"ROI: {roi_pct if isinstance(roi_pct, (int, float)) else '-'} | Payback (months): {payback if isinstance(payback, (int, float)) else '-'} | Mode: {analysis_mode}\nConfidence: {confidence_note}",
+        9.65,
+        1.75,
+        2.75,
+        3.9,
+    )
+
+
+def _add_llm_plan_slide(
+    presentation: Presentation,
+    llm_migration_df: pd.DataFrame | None,
+    llm_recommendations_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "LLM Migration Plan and Recommendations", slide_number)
+    _add_subtitle(slide, "Phases, risks, dependencies and OCI architecture recommendations", 0.76, 1.18, 8.4)
+
+    left_box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(4.55))
+    left_frame = left_box.text_frame
+    left_frame.word_wrap = True
+
+    lines: list[str] = []
+    if llm_migration_df is not None and not llm_migration_df.empty:
+        for _, row in llm_migration_df.head(4).iterrows():
+            phase = str(row.get("phase", "")).strip()
+            duration = str(row.get("duration", "")).strip()
+            quick = str(row.get("quick_wins", "")).strip()
+            lines.append(f"{phase} ({duration}) - {quick}")
+    if not lines:
+        lines.append("No migration plan returned.")
+
+    first = True
+    for line in lines:
+        paragraph = left_frame.paragraphs[0] if first else left_frame.add_paragraph()
+        first = False
+        paragraph.text = line
+        _style_paragraph(paragraph, bold=False, size=14, color=_rgb_tuple(COLOR_TEXT))
+
+    right_note = []
+    if llm_recommendations_df is not None and not llm_recommendations_df.empty:
+        for _, row in llm_recommendations_df.head(7).iterrows():
+            right_note.append(f"- {str(row.get('item', '')).strip()}")
+    if not right_note:
+        right_note = ["- No recommendations returned."]
+    _add_side_note(
+        slide,
+        "Recommendations\n" + "\n".join(right_note),
+        9.65,
+        1.75,
+        2.75,
+        4.55,
+    )
+
+
 def _paint_slide(slide, dark: bool = False) -> None:
     shape = slide.shapes.add_shape(
         MSO_AUTO_SHAPE_TYPE.RECTANGLE,
@@ -510,20 +694,20 @@ def _set_chart_fonts(chart) -> None:
         for paragraph in chart.chart_title.text_frame.paragraphs:
             paragraph.font.name = FONT_NAME
             paragraph.font.bold = True
-            paragraph.font.size = Pt(16)
+            paragraph.font.size = Pt(12)
     if chart.has_legend and chart.legend is not None:
         chart.legend.font.name = FONT_NAME
-        chart.legend.font.size = Pt(10)
+        chart.legend.font.size = Pt(12)
     try:
         category_axis = chart.category_axis
         category_axis.tick_labels.font.name = FONT_NAME
-        category_axis.tick_labels.font.size = Pt(10)
+        category_axis.tick_labels.font.size = Pt(12)
     except (AttributeError, ValueError):
         pass
     try:
         value_axis = chart.value_axis
         value_axis.tick_labels.font.name = FONT_NAME
-        value_axis.tick_labels.font.size = Pt(10)
+        value_axis.tick_labels.font.size = Pt(12)
     except (AttributeError, ValueError):
         pass
 
@@ -544,6 +728,76 @@ def _top_with_others(
     if others_total > 0:
         top.loc[len(top)] = ["Others", others_total]
     return top
+
+
+def _consolidate_mapping_pairs(oci_mapping_df: pd.DataFrame) -> pd.DataFrame:
+    if oci_mapping_df.empty:
+        return pd.DataFrame()
+
+    working = oci_mapping_df.copy()
+    working["service_name_original"] = (
+        working["service_name_original"].fillna("").astype(str).str.strip()
+    )
+    working["oci_service"] = working["oci_service"].fillna("").astype(str).str.strip()
+    working["primary_currency"] = (
+        working.get("primary_currency", pd.Series(["USD"] * len(working)))
+        .fillna("USD")
+        .astype(str)
+        .str.strip()
+    )
+
+    mapped = working[
+        (working["service_name_original"] != "")
+        & (working["oci_service"] != "")
+        & (working["oci_service"] != "REVIEW_REQUIRED")
+    ]
+    if mapped.empty:
+        return pd.DataFrame()
+
+    grouped = (
+        mapped.groupby(["service_name_original", "oci_service"], as_index=False)
+        .agg(
+            total_cost=("total_cost", "sum"),
+            total_usage_quantity=("total_usage_quantity", "sum"),
+            row_count=("oci_service", "count"),
+            primary_currency=("primary_currency", _mode_text_or_default),
+        )
+        .sort_values("total_cost", ascending=False)
+    )
+    return grouped
+
+
+def _mode_text_or_default(values: pd.Series) -> str:
+    cleaned = values.fillna("").astype(str).str.strip()
+    cleaned = cleaned[cleaned != ""]
+    if cleaned.empty:
+        return "USD"
+    return str(cleaned.mode().iloc[0])
+
+
+def _llm_value(
+    llm_report_df: pd.DataFrame,
+    section: str,
+    metric: str,
+    default: object = 0.0,
+) -> object:
+    scoped = llm_report_df[
+        (llm_report_df["section"] == section) & (llm_report_df["metric"] == metric)
+    ]
+    if scoped.empty:
+        return default
+    value = scoped.iloc[0]["value"]
+    if isinstance(value, (int, float)):
+        return value
+    if value is None:
+        return default
+    text = str(value).strip()
+    if text == "":
+        return default
+    try:
+        return float(text)
+    except ValueError:
+        return text
 
 
 def _top_label(df: pd.DataFrame, column: str) -> str:
