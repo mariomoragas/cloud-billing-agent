@@ -4,6 +4,7 @@ import pandas as pd
 
 
 def summarize_by_service(df: pd.DataFrame) -> pd.DataFrame:
+    df = _exclude_reconciliation_rows(df)
     aggregations: dict[str, tuple[str, str | callable]] = {
         "total_usage_quantity": ("usage_quantity", "sum"),
         "total_cost": ("cost", "sum"),
@@ -32,6 +33,7 @@ def summarize_by_service(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def summarize_by_region(df: pd.DataFrame) -> pd.DataFrame:
+    df = _exclude_reconciliation_rows(df)
     aggregations: dict[str, tuple[str, str | callable]] = {
         "total_usage_quantity": ("usage_quantity", "sum"),
         "total_cost": ("cost", "sum"),
@@ -56,6 +58,7 @@ def summarize_by_column(
     label: str | None = None,
     top_n: int | None = None,
 ) -> pd.DataFrame:
+    df = _exclude_reconciliation_rows(df)
     if column not in df.columns:
         return pd.DataFrame()
 
@@ -154,3 +157,10 @@ def _most_common_nonempty(values: pd.Series) -> str:
     if cleaned.empty:
         return ""
     return cleaned.mode().iloc[0]
+
+
+def _exclude_reconciliation_rows(df: pd.DataFrame) -> pd.DataFrame:
+    if "usage_unit" not in df.columns:
+        return df
+    usage_unit = df["usage_unit"].fillna("").astype(str).str.strip().str.lower()
+    return df.loc[usage_unit != "reconciliation"].copy()
