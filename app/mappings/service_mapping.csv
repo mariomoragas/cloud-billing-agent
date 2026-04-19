@@ -171,8 +171,10 @@ gcp,Kubernetes Engine,,.*,Oracle Container Engine for Kubernetes; OCI Registry,e
 gcp,Google Kubernetes Engine,,.*,Oracle Container Engine for Kubernetes; OCI Registry,exact,0.95
 gcp,Artifact Registry,,.*,OCI Registry,pattern,0.9
 gcp,Container Registry,,.*,OCI Registry,pattern,0.85
+gcp,Container Registry Vulnerability Scanning,,.*,OCI Vulnerability Scanning,exact,0.88
 gcp,Cloud Functions,,.*,Oracle Functions,exact,0.96
 gcp,Cloud Run Functions,,.*,Oracle Functions,pattern,0.78
+gcp,App Engine,,.*,Oracle Container Instances; Oracle Functions,exact,0.72
 gcp,Cloud Storage,,.*,Object Storage,exact,0.98
 gcp,Cloud Storage Nearline,,.*,Archive Storage,exact,0.94
 gcp,Persistent Disk,,.*,Block Volumes,pattern,0.9
@@ -181,12 +183,15 @@ gcp,Transfer Appliance,,.*,Data Transfer Appliance,exact,0.93
 gcp,Storage Transfer Service,,.*,rclone; OCIFS Utility (Linux),exact,0.76
 gcp,Virtual Private Cloud,,.*,Virtual Cloud Network (VCN),exact,0.98
 gcp,VPC,,.*,Virtual Cloud Network (VCN),pattern,0.9
+gcp,Networking,,.*,Virtual Cloud Network (VCN); OCI Data Transfer,exact,0.9
 gcp,Cloud Interconnect,,.*,FastConnect,exact,0.97
 gcp,Cloud VPN,,.*,VPN Connect,exact,0.96
 gcp,Cloud DNS,,.*,OCI Domain Name System (DNS); OCI Traffic Management,exact,0.95
 gcp,Cloud Load Balancing,,.*,OCI Load Balancing,exact,0.95
 gcp,Cloud Armor,,.*,DDoS Protection,exact,0.9
 gcp,Cloud SQL,,.*,Oracle Autonomous Transaction Processing (ATP); Oracle MySQL Database Service,exact,0.88
+gcp,Cloud Memorystore for Redis,,.*,Oracle Cloud Infrastructure Cache,exact,0.86
+gcp,Cloud Memorystore for Memcached,,.*,Oracle Cloud Infrastructure Cache,exact,0.86
 gcp,Firestore,,.*,Oracle NoSQL Database; Oracle Autonomous JSON Database (AJD),exact,0.86
 gcp,BigQuery,,.*,Oracle Autonomous Data Warehouse (ADW); Oracle MySQL HeatWave,exact,0.88
 gcp,Dataflow,,.*,OCI Data Flow; Oracle Big Data Service,exact,0.84
@@ -210,6 +215,7 @@ gcp,Key Management Service,,.*,OCI Vault,pattern,0.94
 gcp,Cloud KMS,,.*,OCI Vault,exact,0.94
 gcp,Security Command Center,,.*,OCI Cloud Guard,pattern,0.88
 gcp,Cloud Security Command Center,,.*,OCI Cloud Guard,exact,0.88
+gcp,Re:dash packaged by Bitnami,,.*,OCI Marketplace; Oracle Analytics Cloud,pattern,0.58
 aws,EBS,,^EBS$,OCI Block Volumes,pattern,0.95
 aws,Amazon Elastic Container Service,,^Amazon Elastic Container Service .*Fargate.*,Oracle Container Instances; Oracle Container Engine for Kubernetes,pattern,0.93
 aws,Amazon Elastic Container Service for Kubernetes,,^Amazon Elastic Container Service for Kubernetes .*,Oracle Container Engine for Kubernetes; OCI Registry,pattern,0.94

@@ -437,6 +437,7 @@ def _render_home() -> str:
           <select id="format" name="format">
             <option value="aws-invoice" selected>AWS Invoice CSV</option>
             <option value="aws-billing-pdf">AWS Billing PDF</option>
+            <option value="gcp-cost-table">GCP Cost table CSV</option>
             <option value="generic">CSV generico</option>
           </select>
 
@@ -455,8 +456,10 @@ def _render_home() -> str:
         <p class="note">
           Para AWS Invoice, a regra padrao remove linhas sem <code>LinkedAccountName</code>
           antes da analise. Para AWS Billing PDF, o parser extrai linhas de uso/custo do layout
-          de fatura consolidada da AWS Billing and Cost Management. A analise LLM usa
-          <code>OPENAI_API_KEY</code> quando disponivel.
+          de fatura consolidada da AWS Billing and Cost Management. Para GCP Cost table, o parser
+          ignora os metadados iniciais do export, normaliza valores em BRL/USD e remove linhas de
+          totalizacao/impostos da analise por servico. A analise LLM usa <code>OPENAI_API_KEY</code>
+          quando disponivel.
         </p>
       </div>
 
