@@ -3,6 +3,7 @@
 Esqueleto funcional em Python para:
 
 - ler billing em CSV (multicloud) e PDF (AWS Billing and Cost Management)
+- ler CSV real de GCP Cost table exportado pelo console de billing
 - disponibilizar uma interface web local com upload de arquivo
 - normalizar colunas para um modelo comum
 - consolidar custo e quantidade por servico e por regiao
@@ -23,17 +24,23 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+No Windows, se voce nao ativar a virtualenv, use sempre o Python da `.venv`:
+
+```powershell
+.venv\Scripts\python.exe -m app.main --help
+```
+
 ## Uso
 
 ```powershell
-python -m app.main --input .\seu_billing.csv --cloud aws
+.venv\Scripts\python.exe -m app.main --input .\seu_billing.csv --cloud aws
 ```
 
 Para incluir analise FinOps via LLM no relatorio:
 
 ```powershell
 $env:OPENAI_API_KEY="sua_chave_openai"
-python -m app.main --input .\seu_billing.csv --cloud aws --llm-model gpt-4o-mini
+.venv\Scripts\python.exe -m app.main --input .\seu_billing.csv --cloud aws --llm-model gpt-4o-mini
 ```
 
 Se `OPENAI_API_KEY` nao estiver definida, a aplicacao gera um fallback local (estimativo)
@@ -49,13 +56,15 @@ OPENAI_MODEL=gpt-4o-mini
 ```
 
 A aplicacao carrega esse arquivo automaticamente ao iniciar (`python -m app.main` e `python -m app.web`).
+O arquivo `.env` configura apenas variaveis como `OPENAI_API_KEY` e `OPENAI_MODEL`; dependencias
+Python como `python-pptx` devem estar instaladas na `.venv` via `requirements.txt`.
 
 ## Interface web local
 
 Para abrir a interface web com upload do arquivo:
 
 ```powershell
-python -m app.web
+.venv\Scripts\python.exe -m app.web
 ```
 
 Ou no Windows:
@@ -74,8 +83,10 @@ A interface permite:
 
 - enviar CSV ou PDF
 - escolher o formato do arquivo
+- escolher AWS Invoice CSV, AWS Billing PDF, GCP Cost table CSV ou CSV generico
 - baixar o Excel pronto no navegador
 - baixar o PowerPoint executivo no navegador
+- visualizar previa com custo total, top servicos e servicos sem mapeamento OCI
 
 ## Empacotar como executavel no Windows
 
@@ -90,7 +101,7 @@ O launcher usado para empacotar fica em `web_launcher.pyw`.
 Exemplo com AWS Invoice CSV:
 
 ```powershell
-python -m app.main `
+.venv\Scripts\python.exe -m app.main `
   --input .\ecsv_4_2024.csv `
   --format aws-invoice `
   --output .\output\billing_report_aws_invoice.xlsx
@@ -99,16 +110,28 @@ python -m app.main `
 Exemplo com AWS Billing PDF:
 
 ```powershell
-python -m app.main `
+.venv\Scripts\python.exe -m app.main `
   --input "C:\caminho\billing_aws.pdf" `
   --format aws-billing-pdf `
   --output .\output\billing_report_aws_pdf.xlsx
 ```
 
+Exemplo com GCP Cost table CSV:
+
+```powershell
+.venv\Scripts\python.exe -m app.main `
+  --input "C:\caminho\Minha conta de faturamento_Cost table, 2025-02-01 — 2025-02-28.csv" `
+  --format gcp-cost-table `
+  --cloud gcp `
+  --output .\output\billing_report_gcp_cost_table.xlsx `
+  --company-name "Minha conta de faturamento" `
+  --project-name "GCP to OCI Assessment"
+```
+
 Exemplo com caminhos explicitos:
 
 ```powershell
-python -m app.main `
+.venv\Scripts\python.exe -m app.main `
   --input C:\caminho\fatura_aws.csv `
   --cloud aws `
   --mapping .\app\mappings\service_mapping.csv `
@@ -120,6 +143,7 @@ python -m app.main `
 - `generic`: CSV com aliases de colunas comuns de billing multicloud
 - `aws-invoice`: CSV de invoice consolidada da AWS
 - `aws-billing-pdf`: PDF de billing consolidado da AWS Billing and Cost Management
+- `gcp-cost-table`: CSV de GCP Cost table exportado pelo console de billing
 
 ## Colunas aceitas
 
@@ -171,6 +195,50 @@ Regras aplicadas:
 - infere regiao a partir do prefixo de `UsageType` quando possivel
 - infere unidade de uso com base em `UsageType` e `ItemDescription`
 
+## GCP Cost table CSV
+
+O parser dedicado de GCP foi criado a partir de um CSV real exportado do Cost table.
+Ele reconhece o layout com metadados no topo, por exemplo:
+
+- `Invoice number`
+- `Invoice date`
+- `Due date`
+- `Billing ID`
+- `Billing account ID`
+- `Currency`
+- `Currency exchange rate`
+- `Total amount due`
+
+Depois localiza automaticamente o cabecalho real iniciado por `Billing account name` e usa colunas como:
+
+- `Billing account name`
+- `Billing account ID`
+- `Project name`
+- `Project ID`
+- `Project hierarchy`
+- `Service description`
+- `Service ID`
+- `SKU description`
+- `SKU ID`
+- `Credit type`
+- `Cost type`
+- `Usage start date`
+- `Usage end date`
+- `Usage amount`
+- `Usage unit`
+- `Unrounded Cost (R$)`
+- `Cost (R$)`
+
+Regras aplicadas:
+
+- ignora linhas de metadados antes do cabecalho real
+- converte numeros com formato brasileiro, como `45.625,35` e `0,003`
+- identifica a moeda pelos metadados (`Currency`) ou pelo nome da coluna de custo
+- usa apenas linhas `Cost type = Usage` com `Service description` preenchido na analise por servico
+- remove linhas de `Tax`, `Total` e `Rounding error` da analise operacional
+- preserva projeto, SKU, tipo de credito, datas de uso e custo arredondado/nao arredondado
+- cria reconciliacao na aba `Data_Quality` com delta entre a linha `Total` e o custo analisado
+
 ## PowerPoint executivo
 
 Toda execucao agora gera tambem um `.pptx` ao lado do arquivo Excel.
@@ -192,12 +260,19 @@ Slides incluidos:
 - `Resumo_Servicos`
 - `Resumo_Regioes`
 - `Mapeamento_OCI`
+- `Data_Quality`
 - `LLM_Resumo`
 - `LLM_Migracao`
 - `LLM_Recomendacoes`
 - `LLM_Confianca`
 - `Pendencias`
 - `Charts`
+
+Para GCP Cost table, tambem podem ser geradas abas auxiliares:
+
+- `gcp_project_name`
+- `gcp_sku`
+- `gcp_credit_type`
 
 ## Analise LLM no PowerPoint
 
@@ -211,6 +286,6 @@ Quando habilitada, o deck inclui slides adicionais com:
 ## Proximos passos sugeridos
 
 - adicionar parser dedicado para Azure Cost Export
-- adicionar parser dedicado para GCP Billing Export
+- adicionar suporte ao GCP BigQuery Billing Export detalhado
 - permitir escolha de provedor LLM e endpoint via UI
 - enriquecer parser PDF AWS para mais variacoes de layout/idioma
