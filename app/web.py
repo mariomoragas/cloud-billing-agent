@@ -65,7 +65,7 @@ def _handle_process(environ, start_response):
     cloud = form.getfirst("cloud", "aws")
     company_name = form.getfirst("company_name", "").strip()
     project_name = form.getfirst("project_name", "").strip()
-    llm_model = form.getfirst("llm_model", os.getenv("OPENAI_MODEL", "gpt-4o-mini")).strip()
+    llm_model = form.getfirst("llm_model", os.getenv("GEMINI_MODEL", "gemini-2.5-flash")).strip()
 
     if uploaded_file is None or not getattr(uploaded_file, "filename", ""):
         return _html_response(
@@ -448,8 +448,8 @@ def _render_home() -> str:
             <option value="gcp">GCP</option>
           </select>
 
-          <label for="llm_model">Modelo LLM (OpenAI)</label>
-          <input id="llm_model" type="text" name="llm_model" value="gpt-4o-mini" placeholder="Ex.: gpt-4o-mini">
+          <label for="llm_model">Modelo LLM (Gemini / Google AI Studio)</label>
+          <input id="llm_model" type="text" name="llm_model" value="gemini-2.5-flash" placeholder="Ex.: gemini-2.5-flash">
 
           <button type="submit">Processar relatorios</button>
         </form>
@@ -458,7 +458,7 @@ def _render_home() -> str:
           antes da analise. Para AWS Billing PDF, o parser extrai linhas de uso/custo do layout
           de fatura consolidada da AWS Billing and Cost Management. Para GCP Cost table, o parser
           ignora os metadados iniciais do export, normaliza valores em BRL/USD e remove linhas de
-          totalizacao/impostos da analise por servico. A analise LLM usa <code>OPENAI_API_KEY</code>
+          totalizacao/impostos da analise por servico. A analise LLM usa <code>GEMINI_API_KEY</code>
           quando disponivel.
         </p>
       </div>

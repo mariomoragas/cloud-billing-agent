@@ -47,8 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--llm-model",
-        default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        help="Modelo OpenAI usado para analise FinOps via LLM.",
+        default=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+        help="Modelo Gemini usado para analise FinOps via LLM.",
     )
     return parser
 

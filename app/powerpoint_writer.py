@@ -340,14 +340,14 @@ def _add_unmapped_slide(
         2.0,
     )
 
-    box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(4.45))
+    box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(3.25))
     frame = box.text_frame
     frame.word_wrap = True
 
     if unmapped_df.empty:
         paragraph = frame.paragraphs[0]
         paragraph.text = "All services in this report have an initial OCI mapping."
-        _style_paragraph(paragraph, bold=False, size=18, color=_rgb_tuple(COLOR_TEXT))
+        _style_paragraph(paragraph, bold=False, size=14, color=_rgb_tuple(COLOR_TEXT))
         return
 
     first = True
@@ -356,7 +356,7 @@ def _add_unmapped_slide(
         first = False
         cost = float(row["total_cost"]) if "total_cost" in row else 0.0
         paragraph.text = f"{row['service_name_original']} | {cost:,.2f} {row.get('primary_currency', 'USD')}"
-        _style_paragraph(paragraph, bold=False, size=17, color=_rgb_tuple(COLOR_TEXT))
+        _style_paragraph(paragraph, bold=False, size=14, color=_rgb_tuple(COLOR_TEXT))
 
 
 def _add_mapping_slide(
@@ -385,7 +385,7 @@ def _add_mapping_slide(
         2.0,
     )
 
-    box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(4.55))
+    box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(5.15))
     frame = box.text_frame
     frame.word_wrap = True
 
@@ -402,13 +402,13 @@ def _add_mapping_slide(
         paragraph = frame.paragraphs[0] if first else frame.add_paragraph()
         first = False
         paragraph.text = f"{row['service_name_original']} --> {row['oci_service']}"
-        _style_paragraph(paragraph, bold=False, size=15, color=_rgb_tuple(COLOR_TEXT))
+        _style_paragraph(paragraph, bold=False, size=11, color=_rgb_tuple(COLOR_TEXT))
 
     remaining = len(mapping_df) - len(visible)
     if remaining > 0:
         paragraph = frame.add_paragraph()
         paragraph.text = f"+ {remaining} additional consolidated mappings not shown."
-        _style_paragraph(paragraph, bold=True, size=13, color=_rgb_tuple(COLOR_MUTED))
+        _style_paragraph(paragraph, bold=True, size=11, color=_rgb_tuple(COLOR_MUTED))
 
 
 def _add_llm_overview_slide(
@@ -441,21 +441,22 @@ def _add_llm_overview_slide(
     summary = str(_llm_value(llm_report_df, "summary", "executive_summary", default="")).strip()
     if not summary:
         summary = "No executive summary returned."
-    _add_insight_box(slide, summary, 0.76, 4.0, 8.7, 1.7)
+    _add_insight_box(slide, summary, 0.76, 4.0, 8.7, 1.7, title_size=11, body_size=11)
 
     confidence_note = "No confidence information."
     if llm_confidence_df is not None and not llm_confidence_df.empty:
         preview = []
         for _, row in llm_confidence_df.head(3).iterrows():
             preview.append(f"{row.get('topic', '')}: {row.get('level', '')}")
-        confidence_note = " | ".join(preview)
+        confidence_note = "\n".join(preview)
     _add_side_note(
         slide,
-        f"ROI: {roi_pct if isinstance(roi_pct, (int, float)) else '-'} | Payback (months): {payback if isinstance(payback, (int, float)) else '-'} | Mode: {analysis_mode}\nConfidence: {confidence_note}",
+        f"ROI: {_format_percentage(roi_pct)}\nPayback (months): {_format_months(payback)} Mode: {analysis_mode}\n{confidence_note}",
         9.65,
         1.75,
         2.75,
         3.9,
+        body_size=12,
     )
 
 
@@ -470,7 +471,7 @@ def _add_llm_plan_slide(
     _add_standard_frame(slide, "LLM Migration Plan and Recommendations", slide_number)
     _add_subtitle(slide, "Phases, risks, dependencies and OCI architecture recommendations", 0.76, 1.18, 8.4)
 
-    left_box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(4.55))
+    left_box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(11.31), Inches(1.45))
     left_frame = left_box.text_frame
     left_frame.word_wrap = True
 
@@ -489,7 +490,7 @@ def _add_llm_plan_slide(
         paragraph = left_frame.paragraphs[0] if first else left_frame.add_paragraph()
         first = False
         paragraph.text = line
-        _style_paragraph(paragraph, bold=False, size=14, color=_rgb_tuple(COLOR_TEXT))
+        _style_paragraph(paragraph, bold=False, size=10, color=_rgb_tuple(COLOR_TEXT))
 
     right_note = []
     if llm_recommendations_df is not None and not llm_recommendations_df.empty:
@@ -500,10 +501,12 @@ def _add_llm_plan_slide(
     _add_side_note(
         slide,
         "Recommendations\n" + "\n".join(right_note),
-        9.65,
-        1.75,
-        2.75,
-        4.55,
+        0.76,
+        3.31,
+        11.64,
+        3.64,
+        title_size=9,
+        body_size=9,
     )
 
 
@@ -618,7 +621,16 @@ def _add_subtitle(slide, text: str, left: float, top: float, width: float) -> No
     _style_paragraph(paragraph, bold=False, size=11, color=_rgb_tuple(COLOR_MUTED))
 
 
-def _add_insight_box(slide, text: str, left: float, top: float, width: float, height: float) -> None:
+def _add_insight_box(
+    slide,
+    text: str,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    title_size: int = 13,
+    body_size: int = 16,
+) -> None:
     shape = slide.shapes.add_shape(
         MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
         Inches(left),
@@ -632,13 +644,22 @@ def _add_insight_box(slide, text: str, left: float, top: float, width: float, he
     frame = shape.text_frame
     p1 = frame.paragraphs[0]
     p1.text = "Executive takeaway"
-    _style_paragraph(p1, bold=True, size=13, color=_rgb_tuple(COLOR_PRIMARY_DARK))
+    _style_paragraph(p1, bold=True, size=title_size, color=_rgb_tuple(COLOR_PRIMARY_DARK))
     p2 = frame.add_paragraph()
     p2.text = text
-    _style_paragraph(p2, bold=False, size=16, color=_rgb_tuple(COLOR_TEXT))
+    _style_paragraph(p2, bold=False, size=body_size, color=_rgb_tuple(COLOR_TEXT))
 
 
-def _add_side_note(slide, text: str, left: float, top: float, width: float, height: float) -> None:
+def _add_side_note(
+    slide,
+    text: str,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    title_size: int = 13,
+    body_size: int = 14,
+) -> None:
     shape = slide.shapes.add_shape(
         MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
         Inches(left),
@@ -652,10 +673,11 @@ def _add_side_note(slide, text: str, left: float, top: float, width: float, heig
     frame = shape.text_frame
     p1 = frame.paragraphs[0]
     p1.text = "Oracle note"
-    _style_paragraph(p1, bold=True, size=13, color=_rgb_tuple(COLOR_PRIMARY))
-    p2 = frame.add_paragraph()
-    p2.text = text
-    _style_paragraph(p2, bold=False, size=14, color=_rgb_tuple(COLOR_TEXT))
+    _style_paragraph(p1, bold=True, size=title_size, color=_rgb_tuple(COLOR_PRIMARY))
+    for line in text.splitlines():
+        p2 = frame.add_paragraph()
+        p2.text = line
+        _style_paragraph(p2, bold=False, size=body_size, color=_rgb_tuple(COLOR_TEXT))
 
 
 def _add_footer(slide, text: str, dark: bool = False, slide_number: int | None = None) -> None:
@@ -773,6 +795,18 @@ def _mode_text_or_default(values: pd.Series) -> str:
     if cleaned.empty:
         return "USD"
     return str(cleaned.mode().iloc[0])
+
+
+def _format_percentage(value: object) -> str:
+    if isinstance(value, (int, float)):
+        return f"{float(value):.2f}%"
+    return "-"
+
+
+def _format_months(value: object) -> str:
+    if isinstance(value, (int, float)):
+        return f"{float(value):.1f}"
+    return "-"
 
 
 def _llm_value(

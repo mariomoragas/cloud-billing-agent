@@ -29,7 +29,7 @@ def process_billing_file(
     mapping_path: Path,
     company_name: str = "",
     project_name: str = "",
-    llm_model: str = "gpt-4o-mini",
+    llm_model: str = "gemini-2.5-flash",
 ) -> Path:
     data_quality_df = pd.DataFrame()
 

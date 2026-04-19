@@ -10,7 +10,7 @@ Esqueleto funcional em Python para:
 - gerar um Excel com abas de dados, resumo, graficos e mapeamento OCI
 - gerar um PowerPoint executivo com slides e graficos principais
 - apontar servicos sem de-para para revisao manual
-- gerar analise FinOps/migracao OCI via LLM (com fallback local quando API indisponivel)
+- gerar analise FinOps/migracao OCI via Gemini API do Google AI Studio (com fallback local quando API indisponivel)
 
 ## Requisitos
 
@@ -36,14 +36,14 @@ No Windows, se voce nao ativar a virtualenv, use sempre o Python da `.venv`:
 .venv\Scripts\python.exe -m app.main --input .\seu_billing.csv --cloud aws
 ```
 
-Para incluir analise FinOps via LLM no relatorio:
+Para incluir analise FinOps via Gemini API no relatorio:
 
 ```powershell
-$env:OPENAI_API_KEY="sua_chave_openai"
-.venv\Scripts\python.exe -m app.main --input .\seu_billing.csv --cloud aws --llm-model gpt-4o-mini
+$env:GEMINI_API_KEY="sua_chave_google_ai_studio"
+.venv\Scripts\python.exe -m app.main --input .\seu_billing.csv --cloud aws --llm-model gemini-2.5-flash
 ```
 
-Se `OPENAI_API_KEY` nao estiver definida, a aplicacao gera um fallback local (estimativo)
+Se `GEMINI_API_KEY` nao estiver definida, a aplicacao gera um fallback local (estimativo)
 e ainda preenche as abas/slides de analise LLM.
 
 ### Configuracao via arquivo `.env` (CLI e Web)
@@ -51,12 +51,12 @@ e ainda preenche as abas/slides de analise LLM.
 Voce pode criar um arquivo `.env` na raiz do projeto com:
 
 ```text
-OPENAI_API_KEY=sua_chave_openai
-OPENAI_MODEL=gpt-4o-mini
+GEMINI_API_KEY=sua_chave_google_ai_studio
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 A aplicacao carrega esse arquivo automaticamente ao iniciar (`python -m app.main` e `python -m app.web`).
-O arquivo `.env` configura apenas variaveis como `OPENAI_API_KEY` e `OPENAI_MODEL`; dependencias
+O arquivo `.env` configura apenas variaveis como `GEMINI_API_KEY` e `GEMINI_MODEL`; dependencias
 Python como `python-pptx` devem estar instaladas na `.venv` via `requirements.txt`.
 
 ## Interface web local

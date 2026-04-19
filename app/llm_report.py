@@ -186,14 +186,14 @@ def build_llm_report_artifacts(
     error_message = ""
     if report is None:
         report = _fallback_report(payload=payload)
-        if not os.getenv("OPENAI_API_KEY", "").strip():
+        if not os.getenv("GEMINI_API_KEY", "").strip():
             status = "fallback_missing_api_key"
-            error_message = "OPENAI_API_KEY ausente."
+            error_message = "GEMINI_API_KEY ausente."
         else:
             status = "fallback_api_error"
-            error_message = request_error or "Falha ao chamar OpenAI API."
+            error_message = request_error or "Falha ao chamar Gemini API."
     else:
-        status = "llm_openai"
+        status = "llm_gemini"
 
     summary_df = _build_summary_df(report, status=status, error_message=error_message)
     migration_df = _build_migration_df(report)
@@ -292,12 +292,12 @@ def _request_llm_report(
     payload: dict[str, object],
     llm_model: str,
 ) -> tuple[dict[str, object] | None, str]:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
-        return None, "OPENAI_API_KEY ausente."
+        return None, "GEMINI_API_KEY ausente."
 
-    endpoint = os.getenv("OPENAI_API_ENDPOINT", "https://api.openai.com/v1/chat/completions")
-    model = llm_model.strip() or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = llm_model.strip() or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    endpoint = _resolve_gemini_endpoint(model)
 
     user_message = (
         "Dados de billing normalizados para análise FinOps/OCI:\n"
@@ -306,13 +306,19 @@ def _request_llm_report(
         + JSON_INSTRUCTION
     )
     body = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
+        "systemInstruction": {
+            "parts": [{"text": SYSTEM_PROMPT}],
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": user_message}],
+            },
         ],
-        "temperature": 0.2,
-        "response_format": {"type": "json_object"},
+        "generationConfig": {
+            "temperature": 0.2,
+            "responseMimeType": "application/json",
+        },
     }
 
     data = json.dumps(body).encode("utf-8")
@@ -321,7 +327,7 @@ def _request_llm_report(
         data=data,
         method="POST",
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "x-goog-api-key": api_key,
             "Content-Type": "application/json",
         },
     )
@@ -334,24 +340,35 @@ def _request_llm_report(
             details = exc.read().decode("utf-8")
         except Exception:
             details = ""
-        reason = _extract_openai_error(details) or f"HTTP {exc.code}"
+        reason = _extract_gemini_error(details) or f"HTTP {exc.code}"
         return None, reason
     except urllib.error.URLError as exc:
         return None, f"URLError: {exc.reason}"
     except TimeoutError:
-        return None, "Timeout na chamada OpenAI API."
+        return None, "Timeout na chamada Gemini API."
     except json.JSONDecodeError:
-        return None, "Resposta da OpenAI API em formato invalido."
+        return None, "Resposta da Gemini API em formato invalido."
 
     try:
-        content = response_json["choices"][0]["message"]["content"]
+        parts = response_json["candidates"][0]["content"]["parts"]
+        content = "".join(str(part.get("text", "")) for part in parts)
     except (KeyError, IndexError, TypeError):
-        return None, "Resposta da OpenAI API sem campo choices[0].message.content."
+        return None, "Resposta da Gemini API sem candidates[0].content.parts[].text."
 
     parsed = _parse_json_text(content)
     if parsed is None:
         return None, "Resposta da LLM nao esta em JSON valido."
     return parsed, ""
+
+
+def _resolve_gemini_endpoint(model: str) -> str:
+    endpoint_template = os.getenv("GEMINI_API_ENDPOINT", "").strip()
+    if endpoint_template:
+        return endpoint_template.replace("{model}", model)
+    return (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent"
+    )
 
 
 def _parse_json_text(content: str) -> dict[str, object] | None:
@@ -367,7 +384,7 @@ def _parse_json_text(content: str) -> dict[str, object] | None:
         return None
 
 
-def _extract_openai_error(details: str) -> str:
+def _extract_gemini_error(details: str) -> str:
     details = (details or "").strip()
     if not details:
         return ""
@@ -377,7 +394,10 @@ def _extract_openai_error(details: str) -> str:
         return details[:200]
     error_obj = payload.get("error", {}) if isinstance(payload, dict) else {}
     message = error_obj.get("message", "") if isinstance(error_obj, dict) else ""
+    status = error_obj.get("status", "") if isinstance(error_obj, dict) else ""
     code = error_obj.get("code", "") if isinstance(error_obj, dict) else ""
+    if message and status:
+        return f"{message} (status={status})"
     if message and code:
         return f"{message} (code={code})"
     if message:
