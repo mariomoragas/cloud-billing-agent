@@ -296,8 +296,13 @@ def _request_llm_report(
     if not api_key:
         return None, "GEMINI_API_KEY ausente."
 
-    model = llm_model.strip() or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    endpoint = _resolve_gemini_endpoint(model)
+    requested_model = llm_model.strip() or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    fallback_models_env = os.getenv(
+        "GEMINI_FALLBACK_MODELS",
+        "gemini-2.0-flash,gemini-flash-latest,gemini-2.0-flash-lite",
+    )
+    fallback_models = [m.strip() for m in fallback_models_env.split(",") if m.strip()]
+    model_candidates = [requested_model] + [m for m in fallback_models if m != requested_model]
 
     user_message = (
         "Dados de billing normalizados para análise FinOps/OCI:\n"
@@ -321,6 +326,31 @@ def _request_llm_report(
         },
     }
 
+    errors: list[str] = []
+    for model in model_candidates:
+        parsed, error_message, error_status = _request_gemini_once(
+            body=body,
+            api_key=api_key,
+            model=model,
+        )
+        if parsed is not None:
+            return parsed, ""
+        errors.append(f"{error_message} [model={model}]")
+        if error_status not in {"UNAVAILABLE", "RESOURCE_EXHAUSTED"}:
+            break
+
+    if errors:
+        return None, " | ".join(errors[:3])
+    return None, "Falha ao chamar Gemini API."
+
+
+def _request_gemini_once(
+    *,
+    body: dict[str, object],
+    api_key: str,
+    model: str,
+) -> tuple[dict[str, object] | None, str, str]:
+    endpoint = _resolve_gemini_endpoint(model)
     data = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(
         endpoint,
@@ -340,25 +370,25 @@ def _request_llm_report(
             details = exc.read().decode("utf-8")
         except Exception:
             details = ""
-        reason = _extract_gemini_error(details) or f"HTTP {exc.code}"
-        return None, reason
+        reason, status = _extract_gemini_error(details)
+        return None, (reason or f"HTTP {exc.code}"), status
     except urllib.error.URLError as exc:
-        return None, f"URLError: {exc.reason}"
+        return None, f"URLError: {exc.reason}", ""
     except TimeoutError:
-        return None, "Timeout na chamada Gemini API."
+        return None, "Timeout na chamada Gemini API.", ""
     except json.JSONDecodeError:
-        return None, "Resposta da Gemini API em formato invalido."
+        return None, "Resposta da Gemini API em formato invalido.", ""
 
     try:
         parts = response_json["candidates"][0]["content"]["parts"]
         content = "".join(str(part.get("text", "")) for part in parts)
     except (KeyError, IndexError, TypeError):
-        return None, "Resposta da Gemini API sem candidates[0].content.parts[].text."
+        return None, "Resposta da Gemini API sem candidates[0].content.parts[].text.", ""
 
     parsed = _parse_json_text(content)
     if parsed is None:
-        return None, "Resposta da LLM nao esta em JSON valido."
-    return parsed, ""
+        return None, "Resposta da LLM nao esta em JSON valido.", ""
+    return parsed, "", ""
 
 
 def _resolve_gemini_endpoint(model: str) -> str:
@@ -384,25 +414,25 @@ def _parse_json_text(content: str) -> dict[str, object] | None:
         return None
 
 
-def _extract_gemini_error(details: str) -> str:
+def _extract_gemini_error(details: str) -> tuple[str, str]:
     details = (details or "").strip()
     if not details:
-        return ""
+        return "", ""
     try:
         payload = json.loads(details)
     except json.JSONDecodeError:
-        return details[:200]
+        return details[:200], ""
     error_obj = payload.get("error", {}) if isinstance(payload, dict) else {}
     message = error_obj.get("message", "") if isinstance(error_obj, dict) else ""
     status = error_obj.get("status", "") if isinstance(error_obj, dict) else ""
     code = error_obj.get("code", "") if isinstance(error_obj, dict) else ""
     if message and status:
-        return f"{message} (status={status})"
+        return f"{message} (status={status})", str(status)
     if message and code:
-        return f"{message} (code={code})"
+        return f"{message} (code={code})", str(status)
     if message:
-        return str(message)
-    return details[:200]
+        return str(message), str(status)
+    return details[:200], str(status)
 
 
 def _fallback_report(payload: dict[str, object]) -> dict[str, object]:
