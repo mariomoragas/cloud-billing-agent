@@ -8,6 +8,7 @@ from pptx.chart.data import ChartData
 from pptx.dml.color import RGBColor
 from pptx.enum.chart import XL_CHART_TYPE, XL_DATA_LABEL_POSITION, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.util import Inches, Pt
 
 FONT_NAME = "Verdana"
@@ -27,6 +28,7 @@ COLOR_SECONDARY = RGBColor(232, 184, 175)
 COLOR_TEXT = RGBColor(27, 27, 27)
 COLOR_MUTED = RGBColor(95, 91, 87)
 COLOR_DARK = RGBColor(27, 27, 27)
+FOOTER_TEXT = "Copyright © 2026, Oracle | Confidential: Restricted"
 
 
 def write_powerpoint_report(
@@ -121,12 +123,14 @@ def _add_title_slide(
     client_name = company_name.strip() or _derive_client_name(report_name)
     if client_name:
         client_box = slide.shapes.add_textbox(Inches(0.76), Inches(1.65), Inches(6.0), Inches(0.45))
+        _configure_text_frame(client_box.text_frame, margin_left=0.02, margin_right=0.02)
         client_paragraph = client_box.text_frame.paragraphs[0]
         client_paragraph.text = client_name
         _style_paragraph(client_paragraph, bold=False, size=13, color=(255, 255, 255))
     period = _mode_or_default(raw_df, "period", "N/A")
     cloud = _mode_or_default(raw_df, "cloud", "cloud").upper()
     subtitle = slide.shapes.add_textbox(Inches(0.76), Inches(3.85), Inches(7.6), Inches(0.8))
+    _configure_text_frame(subtitle.text_frame, margin_left=0.02, margin_right=0.02)
     paragraph = subtitle.text_frame.paragraphs[0]
     paragraph.text = f"Assessment scope | Billing period: {period} | Source: {cloud}"
     _style_paragraph(paragraph, bold=False, size=20, color=_rgb_tuple(COLOR_SECONDARY))
@@ -134,7 +138,7 @@ def _add_title_slide(
     total_cost = float(raw_df["cost"].sum()) if not raw_df.empty else 0.0
     currency = _mode_or_default(raw_df, "currency", "USD")
     _add_hero_metric(slide, "Total analyzed cost", f"{total_cost:,.2f} {currency}", 0.76, 4.55, dark=True)
-    _add_footer(slide, "Copyright © 2026, Oracle | Confidential: Restricted", dark=True, slide_number=1)
+    _add_footer(slide, FOOTER_TEXT, dark=True, slide_number=1)
 
 
 def _add_section_slide(
@@ -150,10 +154,11 @@ def _add_section_slide(
     _add_picture_if_exists(slide, ASSET_ORACLE_LOGO, 0.76, 1.02, 1.67, 0.35)
     _add_title(slide, title, 0.76, 2.55, 6.6, dark=True)
     sub_box = slide.shapes.add_textbox(Inches(0.76), Inches(3.45), Inches(6.8), Inches(0.5))
+    _configure_text_frame(sub_box.text_frame, margin_left=0.02, margin_right=0.02)
     sub_paragraph = sub_box.text_frame.paragraphs[0]
     sub_paragraph.text = subtitle
     _style_paragraph(sub_paragraph, bold=False, size=18, color=_rgb_tuple(COLOR_SECONDARY))
-    _add_footer(slide, "Copyright © 2026, Oracle | Confidential: Restricted", dark=True, slide_number=slide_number)
+    _add_footer(slide, FOOTER_TEXT, dark=True, slide_number=slide_number)
 
 
 def _add_kpi_slide(
@@ -342,7 +347,7 @@ def _add_unmapped_slide(
 
     box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(3.25))
     frame = box.text_frame
-    frame.word_wrap = True
+    _configure_text_frame(frame)
 
     if unmapped_df.empty:
         paragraph = frame.paragraphs[0]
@@ -387,7 +392,7 @@ def _add_mapping_slide(
 
     box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(8.35), Inches(5.15))
     frame = box.text_frame
-    frame.word_wrap = True
+    _configure_text_frame(frame)
 
     if mapping_df.empty:
         paragraph = frame.paragraphs[0]
@@ -473,7 +478,7 @@ def _add_llm_plan_slide(
 
     left_box = slide.shapes.add_textbox(Inches(0.82), Inches(1.75), Inches(11.31), Inches(1.45))
     left_frame = left_box.text_frame
-    left_frame.word_wrap = True
+    _configure_text_frame(left_frame)
 
     lines: list[str] = []
     if llm_migration_df is not None and not llm_migration_df.empty:
@@ -544,7 +549,7 @@ def _add_standard_frame(slide, title: str, slide_number: int) -> None:
     _add_oracle_banner(slide)
     _add_title(slide, title, 0.76, 0.52, 8.7)
     _add_title_accent(slide, 0.76, 1.08)
-    _add_footer(slide, "Copyright © 2026, Oracle | Confidential: Restricted", slide_number=slide_number)
+    _add_footer(slide, FOOTER_TEXT, slide_number=slide_number)
 
 
 def _add_title(slide, text: str, left: float, top: float, width: float, dark: bool = False) -> None:
@@ -583,6 +588,7 @@ def _add_hero_metric(slide, label: str, value: str, left: float, top: float, dar
     shape.fill.fore_color.rgb = RGBColor(255, 255, 255) if not dark else RGBColor(251, 249, 248)
     shape.line.color.rgb = COLOR_SECONDARY
     frame = shape.text_frame
+    _configure_text_frame(frame)
     frame.clear()
     p1 = frame.paragraphs[0]
     p1.text = label
@@ -605,6 +611,7 @@ def _add_kpi_card(slide, label: str, value: str, left: float, top: float) -> Non
     shape.line.color.rgb = COLOR_BORDER
 
     frame = shape.text_frame
+    _configure_text_frame(frame)
     frame.clear()
     p1 = frame.paragraphs[0]
     p1.text = label
@@ -616,6 +623,7 @@ def _add_kpi_card(slide, label: str, value: str, left: float, top: float) -> Non
 
 def _add_subtitle(slide, text: str, left: float, top: float, width: float) -> None:
     box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(0.35))
+    _configure_text_frame(box.text_frame, margin_left=0.01, margin_right=0.01)
     paragraph = box.text_frame.paragraphs[0]
     paragraph.text = text
     _style_paragraph(paragraph, bold=False, size=11, color=_rgb_tuple(COLOR_MUTED))
@@ -642,6 +650,7 @@ def _add_insight_box(
     shape.fill.fore_color.rgb = RGBColor(255, 248, 245)
     shape.line.color.rgb = COLOR_SECONDARY
     frame = shape.text_frame
+    _configure_text_frame(frame)
     p1 = frame.paragraphs[0]
     p1.text = "Executive takeaway"
     _style_paragraph(p1, bold=True, size=title_size, color=_rgb_tuple(COLOR_PRIMARY_DARK))
@@ -671,6 +680,7 @@ def _add_side_note(
     shape.fill.fore_color.rgb = RGBColor(255, 255, 255)
     shape.line.color.rgb = COLOR_BORDER
     frame = shape.text_frame
+    _configure_text_frame(frame)
     p1 = frame.paragraphs[0]
     p1.text = "Oracle note"
     _style_paragraph(p1, bold=True, size=title_size, color=_rgb_tuple(COLOR_PRIMARY))
@@ -693,12 +703,14 @@ def _add_footer(slide, text: str, dark: bool = False, slide_number: int | None =
         line.fill.fore_color.rgb = RGBColor(139, 133, 128)
         line.line.fill.background()
     shape = slide.shapes.add_textbox(Inches(1.12), Inches(6.95), Inches(5.2), Inches(0.22))
+    _configure_text_frame(shape.text_frame, margin_left=0.01, margin_right=0.01)
     paragraph = shape.text_frame.paragraphs[0]
     paragraph.text = text
     color = _rgb_tuple(COLOR_SECONDARY) if dark else (139, 133, 128)
     _style_paragraph(paragraph, bold=False, size=8, color=color)
     if slide_number is not None:
         number_box = slide.shapes.add_textbox(Inches(0.76), Inches(6.92), Inches(0.3), Inches(0.25))
+        _configure_text_frame(number_box.text_frame, margin_left=0.0, margin_right=0.0)
         number_paragraph = number_box.text_frame.paragraphs[0]
         number_paragraph.text = str(slide_number)
         _style_paragraph(number_paragraph, bold=False, size=8, color=color)
@@ -732,6 +744,13 @@ def _set_chart_fonts(chart) -> None:
         value_axis.tick_labels.font.size = Pt(12)
     except (AttributeError, ValueError):
         pass
+    if chart.plots:
+        try:
+            labels = chart.plots[0].data_labels
+            labels.font.name = FONT_NAME
+            labels.font.size = Pt(12)
+        except Exception:
+            pass
 
 
 def _top_with_others(
@@ -869,3 +888,19 @@ def _mode_or_default(df: pd.DataFrame, column: str, default: str) -> str:
     if series.empty:
         return default
     return str(series.mode().iloc[0])
+
+
+def _configure_text_frame(
+    frame,
+    *,
+    margin_left: float = 0.04,
+    margin_right: float = 0.04,
+    margin_top: float = 0.03,
+    margin_bottom: float = 0.03,
+) -> None:
+    frame.word_wrap = True
+    frame.auto_size = MSO_AUTO_SIZE.NONE
+    frame.margin_left = Inches(margin_left)
+    frame.margin_right = Inches(margin_right)
+    frame.margin_top = Inches(margin_top)
+    frame.margin_bottom = Inches(margin_bottom)

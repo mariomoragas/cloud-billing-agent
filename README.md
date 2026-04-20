@@ -3,6 +3,7 @@
 Esqueleto funcional em Python para:
 
 - ler billing em CSV (multicloud) e PDF (AWS Billing and Cost Management)
+- ler CSV real de Azure Cost exportado em tabela de metricas
 - ler CSV real de GCP Cost table exportado pelo console de billing
 - disponibilizar uma interface web local com upload de arquivo
 - normalizar colunas para um modelo comum
@@ -83,7 +84,7 @@ A interface permite:
 
 - enviar CSV ou PDF
 - escolher o formato do arquivo
-- escolher AWS Invoice CSV, AWS Billing PDF, GCP Cost table CSV ou CSV generico
+- escolher AWS Invoice CSV, AWS Billing PDF, Azure Cost CSV, GCP Cost table CSV ou CSV generico
 - baixar o Excel pronto no navegador
 - baixar o PowerPoint executivo no navegador
 - visualizar previa com custo total, top servicos e servicos sem mapeamento OCI
@@ -128,6 +129,18 @@ Exemplo com GCP Cost table CSV:
   --project-name "GCP to OCI Assessment"
 ```
 
+Exemplo com Azure Cost CSV:
+
+```powershell
+.venv\Scripts\python.exe -m app.main `
+  --input "C:\caminho\tabela_metricas.csv" `
+  --format azure-cost-csv `
+  --cloud azure `
+  --output .\output\billing_report_azure_cost.xlsx `
+  --company-name "Maida Health" `
+  --project-name "Azure to OCI Assessment"
+```
+
 Exemplo com caminhos explicitos:
 
 ```powershell
@@ -143,6 +156,7 @@ Exemplo com caminhos explicitos:
 - `generic`: CSV com aliases de colunas comuns de billing multicloud
 - `aws-invoice`: CSV de invoice consolidada da AWS
 - `aws-billing-pdf`: PDF de billing consolidado da AWS Billing and Cost Management
+- `azure-cost-csv`: CSV Azure em formato de tabela de metricas com colunas em portugues
 - `gcp-cost-table`: CSV de GCP Cost table exportado pelo console de billing
 
 ## Colunas aceitas
@@ -239,6 +253,32 @@ Regras aplicadas:
 - preserva projeto, SKU, tipo de credito, datas de uso e custo arredondado/nao arredondado
 - cria reconciliacao na aba `Data_Quality` com delta entre a linha `Total` e o custo analisado
 
+## Azure Cost CSV
+
+O parser dedicado de Azure foi criado a partir de um CSV real de tabela de metricas.
+Ele reconhece colunas como:
+
+- `Instancia`
+- `Grupo`
+- `Categoria`
+- `Subcategoria`
+- `Nome do Produto`
+- `Nome do recurso`
+- `Local`
+- `QTD`
+- `UN`
+- `Data`
+- `Consumo`
+
+Regras aplicadas:
+
+- detecta delimitador `,` ou `;` e encoding (`utf-8-sig`/`latin-1`)
+- normaliza nomes de colunas com acentos para o modelo interno
+- usa `Categoria` como servico principal para mapeamento OCI
+- usa `Nome do Produto` como SKU
+- converte `Data` para periodo mensal (`YYYY-MM`)
+- preserva colunas auxiliares como grupo, recurso, instancia e subcategoria
+
 ## PowerPoint executivo
 
 Toda execucao agora gera tambem um `.pptx` ao lado do arquivo Excel.
@@ -285,7 +325,6 @@ Quando habilitada, o deck inclui slides adicionais com:
 
 ## Proximos passos sugeridos
 
-- adicionar parser dedicado para Azure Cost Export
 - adicionar suporte ao GCP BigQuery Billing Export detalhado
 - permitir escolha de provedor LLM e endpoint via UI
 - enriquecer parser PDF AWS para mais variacoes de layout/idioma

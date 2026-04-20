@@ -256,3 +256,9 @@ aws,AWS Security Hub,,^AWS Security Hub .*$,OCI Cloud Guard,pattern,0.9
 aws,Amazon Simple Notification Service,,^Amazon Simple Notification Service .*$,OCI Notifications,pattern,0.95
 aws,Amazon Simple Queue Service,,^Amazon Simple Queue Service .*$,OCI Queue,pattern,0.95
 aws,Amazon Rekognition,,^Amazon Rekognition .*$,OCI Vision,pattern,0.8
+azure,Azure Analysis Services,,^Azure Analysis Services$,Oracle Analytics Cloud,exact,0.9
+azure,Azure Databricks,,^Azure Databricks$,OCI Data Flow; Oracle Big Data Service,exact,0.88
+azure,Power BI Embedded,,^Power BI Embedded$,Oracle Analytics Cloud,exact,0.92
+azure,NAT Gateway,,^NAT Gateway$,OCI NAT Gateway,exact,0.92
+azure,Azure Data Factory v2,,^Azure Data Factory v2$,OCI Data Integration,exact,0.9
+azure,Cognitive Services,,^Cognitive Services$,OCI AI Services; OCI Generative AI,exact,0.82

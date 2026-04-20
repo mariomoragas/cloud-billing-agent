@@ -335,6 +335,10 @@ def _render_home() -> str:
       color: #f9fafb;
       font-size: 15px;
     }
+    select option {
+      color: #111111;
+      background: #ffffff;
+    }
     button {
       appearance: none;
       border: none;
@@ -424,7 +428,7 @@ def _render_home() -> str:
       <div class="panel">
         <h2 class="card-title">Gerar relatorio</h2>
         <form action="/process" method="post" enctype="multipart/form-data">
-          <label for="billing_file">Arquivo CSV</label>
+          <label for="billing_file">Arquivo de billing</label>
           <input id="billing_file" type="file" name="billing_file" accept=".csv,.pdf" required>
 
           <label for="company_name">Nome da empresa</label>
@@ -433,20 +437,15 @@ def _render_home() -> str:
           <label for="project_name">Projeto / Assessment</label>
           <input id="project_name" type="text" name="project_name" placeholder="Ex.: OCI Conversion Assessment">
 
-          <label for="format">Formato</label>
-          <select id="format" name="format">
-            <option value="aws-invoice" selected>AWS Invoice CSV</option>
-            <option value="aws-billing-pdf">AWS Billing PDF</option>
-            <option value="gcp-cost-table">GCP Cost table CSV</option>
-            <option value="generic">CSV generico</option>
-          </select>
-
           <label for="cloud">Cloud de origem</label>
           <select id="cloud" name="cloud">
             <option value="aws" selected>AWS</option>
             <option value="azure">Azure</option>
             <option value="gcp">GCP</option>
           </select>
+
+          <label for="format">Formato</label>
+          <select id="format" name="format"></select>
 
           <label for="llm_model">Modelo LLM (Gemini / Google AI Studio)</label>
           <input id="llm_model" type="text" name="llm_model" value="gemini-2.5-flash" placeholder="Ex.: gemini-2.5-flash">
@@ -456,7 +455,9 @@ def _render_home() -> str:
         <p class="note">
           Para AWS Invoice, a regra padrao remove linhas sem <code>LinkedAccountName</code>
           antes da analise. Para AWS Billing PDF, o parser extrai linhas de uso/custo do layout
-          de fatura consolidada da AWS Billing and Cost Management. Para GCP Cost table, o parser
+          de fatura consolidada da AWS Billing and Cost Management. Para Azure Cost CSV, o parser
+          processa colunas como <code>Categoria</code>, <code>Nome do Produto</code>, <code>QTD</code>
+          e <code>Consumo</code>. Para GCP Cost table, o parser
           ignora os metadados iniciais do export, normaliza valores em BRL/USD e remove linhas de
           totalizacao/impostos da analise por servico. A analise LLM usa <code>GEMINI_API_KEY</code>
           quando disponivel.
@@ -475,6 +476,48 @@ def _render_home() -> str:
       </aside>
     </section>
   </main>
+  <script>
+    (function () {
+      const cloudSelect = document.getElementById("cloud");
+      const formatSelect = document.getElementById("format");
+      const formatByCloud = {
+        aws: [
+          { value: "aws-invoice", label: "AWS Invoice CSV" },
+          { value: "aws-billing-pdf", label: "AWS Billing PDF" },
+          { value: "generic", label: "CSV generico" }
+        ],
+        azure: [
+          { value: "azure-cost-csv", label: "Azure Cost CSV" },
+          { value: "generic", label: "CSV generico" }
+        ],
+        gcp: [
+          { value: "gcp-cost-table", label: "GCP Cost table CSV" },
+          { value: "generic", label: "CSV generico" }
+        ]
+      };
+
+      function syncFormatOptions() {
+        const cloud = cloudSelect.value;
+        const options = formatByCloud[cloud] || [{ value: "generic", label: "CSV generico" }];
+        const previousValue = formatSelect.value;
+        formatSelect.innerHTML = "";
+        options.forEach((item) => {
+          const option = document.createElement("option");
+          option.value = item.value;
+          option.textContent = item.label;
+          formatSelect.appendChild(option);
+        });
+
+        const canKeepPrevious = options.some((item) => item.value === previousValue);
+        if (canKeepPrevious) {
+          formatSelect.value = previousValue;
+        }
+      }
+
+      cloudSelect.addEventListener("change", syncFormatOptions);
+      syncFormatOptions();
+    })();
+  </script>
 </body>
 </html>
 """

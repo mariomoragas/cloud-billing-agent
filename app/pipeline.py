@@ -15,6 +15,7 @@ from app.llm_report import build_llm_report_artifacts
 from app.normalizer import load_and_normalize_csv
 from app.oci_mapper import build_oci_mapping, load_mapping_table
 from app.parsers.aws_invoice import load_aws_invoice_csv
+from app.parsers.azure_cost_csv import load_azure_cost_csv
 from app.parsers.gcp_cost_table import load_gcp_cost_table_csv
 from app.report_types import ProcessResult
 
@@ -47,6 +48,10 @@ def process_billing_file(
         gcp_result = load_gcp_cost_table_csv(input_path)
         raw_df = gcp_result.dataframe
         data_quality_df = gcp_result.data_quality
+    elif file_format == "azure-cost-csv":
+        azure_result = load_azure_cost_csv(input_path)
+        raw_df = azure_result.dataframe
+        data_quality_df = azure_result.data_quality
     else:
         raw_df = load_and_normalize_csv(input_path, default_cloud=cloud)
 
