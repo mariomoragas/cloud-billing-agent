@@ -83,11 +83,16 @@ http://127.0.0.1:8501
 A interface permite:
 
 - enviar CSV ou PDF
+- limitar upload de CSV/PDF a 300MB por arquivo
 - escolher o formato do arquivo
 - escolher AWS Invoice CSV, AWS Billing PDF, Azure Cost CSV, GCP Cost table CSV ou CSV generico
 - baixar o Excel pronto no navegador
 - baixar o PowerPoint executivo no navegador
+- marcar opcao para apagar os arquivos gerados apos o download (Excel/PPT)
+- manter relatorios em memoria por ate 5 dias (TTL), com limpeza automatica de expirados
+- exibir estado `Processando...` e bloquear envio duplo do formulario
 - visualizar previa com custo total, top servicos e servicos sem mapeamento OCI
+- validar conteudo real do arquivo (assinatura PDF e estrutura CSV), nao apenas extensao
 
 ## Empacotar como executavel no Windows
 

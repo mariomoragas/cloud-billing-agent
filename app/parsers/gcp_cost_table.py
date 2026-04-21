@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from app.input_validation import validate_billing_input_file
 from app.report_types import ParserResult
 
 
@@ -29,6 +30,7 @@ GCP_COST_TABLE_REQUIRED_COLUMNS = {
 
 
 def load_gcp_cost_table_csv(csv_path: Path) -> ParserResult:
+    validate_billing_input_file(csv_path, "gcp-cost-table")
     metadata, header_row_index = _read_metadata_and_header_index(csv_path)
     raw_df = pd.read_csv(
         csv_path,

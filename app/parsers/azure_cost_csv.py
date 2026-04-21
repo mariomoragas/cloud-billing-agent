@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from app.input_validation import validate_billing_input_file
 from app.report_types import ParserResult
 
 REQUIRED_COLUMNS = {
@@ -16,6 +17,7 @@ REQUIRED_COLUMNS = {
 
 
 def load_azure_cost_csv(csv_path: Path) -> ParserResult:
+    validate_billing_input_file(csv_path, "azure-cost-csv")
     raw_df = _read_csv_with_fallbacks(csv_path)
     normalized_columns = _normalize_columns(raw_df.columns)
     raw_df = raw_df.rename(columns=normalized_columns)

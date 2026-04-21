@@ -4,11 +4,13 @@ import cgi
 import html
 import os
 import tempfile
+import time
 import traceback
 import uuid
 import webbrowser
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 
 from app.config import load_local_config
@@ -22,11 +24,14 @@ MAPPING_PATH = APP_ROOT / "app" / "mappings" / "service_mapping.csv"
 WEB_OUTPUT_DIR = APP_ROOT / "output" / "web_downloads"
 WEB_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 REPORTS: dict[str, dict[str, object]] = {}
+MAX_UPLOAD_BYTES = 300 * 1024 * 1024
+REPORT_TTL_SECONDS = 5 * 24 * 60 * 60
 
 
 def application(environ, start_response):
     method = environ.get("REQUEST_METHOD", "GET").upper()
     path = environ.get("PATH_INFO", "/")
+    _cleanup_expired_reports()
 
     try:
         if method == "GET" and path == "/":
@@ -35,10 +40,10 @@ def application(environ, start_response):
             return _handle_process(environ, start_response)
         if method == "GET" and path.startswith("/download/"):
             report_id = path.removeprefix("/download/")
-            return _handle_download(report_id, start_response)
+            return _handle_download(environ, report_id, start_response)
         if method == "GET" and path.startswith("/download-ppt/"):
             report_id = path.removeprefix("/download-ppt/")
-            return _handle_download_ppt(report_id, start_response)
+            return _handle_download_ppt(environ, report_id, start_response)
         if method == "GET" and path.startswith("/assets/fonts/"):
             font_name = path.removeprefix("/assets/fonts/")
             return _handle_font(font_name, start_response)
@@ -59,6 +64,17 @@ def application(environ, start_response):
 
 
 def _handle_process(environ, start_response):
+    try:
+        content_length = int(environ.get("CONTENT_LENGTH", "0") or "0")
+    except ValueError:
+        content_length = 0
+    if content_length > MAX_UPLOAD_BYTES:
+        return _html_response(
+            start_response,
+            _render_error("Arquivo excede o limite de 300MB."),
+            status="413 Payload Too Large",
+        )
+
     form = cgi.FieldStorage(fp=environ["wsgi.input"], environ=environ, keep_blank_values=True)
     uploaded_file = form["billing_file"] if "billing_file" in form else None
     file_format = form.getfirst("format", "aws-invoice")
@@ -76,6 +92,13 @@ def _handle_process(environ, start_response):
 
     file_name = Path(uploaded_file.filename).name
     suffix = Path(file_name).suffix or ".csv"
+    allowed_suffixes = {".csv", ".pdf"}
+    if suffix.lower() not in allowed_suffixes:
+        return _html_response(
+            start_response,
+            _render_error("Formato invalido. Envie apenas arquivos CSV ou PDF."),
+            status="400 Bad Request",
+        )
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir_path = Path(temp_dir)
@@ -87,19 +110,32 @@ def _handle_process(environ, start_response):
         presentation_path = WEB_OUTPUT_DIR / f"{report_id}_{presentation_name}"
 
         file_bytes = uploaded_file.file.read()
+        if len(file_bytes) > MAX_UPLOAD_BYTES:
+            return _html_response(
+                start_response,
+                _render_error("Arquivo excede o limite de 300MB."),
+                status="413 Payload Too Large",
+            )
         input_path.write_bytes(file_bytes)
 
-        result = process_billing_file(
-            input_path=input_path,
-            output_path=output_path,
-            presentation_path=presentation_path,
-            file_format=file_format,
-            cloud=cloud,
-            mapping_path=MAPPING_PATH,
-            company_name=company_name,
-            project_name=project_name,
-            llm_model=llm_model,
-        )
+        try:
+            result = process_billing_file(
+                input_path=input_path,
+                output_path=output_path,
+                presentation_path=presentation_path,
+                file_format=file_format,
+                cloud=cloud,
+                mapping_path=MAPPING_PATH,
+                company_name=company_name,
+                project_name=project_name,
+                llm_model=llm_model,
+            )
+        except ValueError as exc:
+            return _html_response(
+                start_response,
+                _render_error(str(exc)),
+                status="400 Bad Request",
+            )
 
     REPORTS[report_id] = {
         "path": result.output_path,
@@ -107,6 +143,7 @@ def _handle_process(environ, start_response):
         "presentation_path": result.presentation_path,
         "presentation_name": presentation_name,
         "preview": _build_preview_context(result),
+        "created_at": time.time(),
     }
     return _html_response(
         start_response,
@@ -119,7 +156,7 @@ def _handle_process(environ, start_response):
     )
 
 
-def _handle_download(report_id: str, start_response):
+def _handle_download(environ, report_id: str, start_response):
     report = REPORTS.get(report_id)
     if report is None:
         return _html_response(
@@ -137,6 +174,9 @@ def _handle_download(report_id: str, start_response):
         )
 
     response_body = output_path.read_bytes()
+    should_delete = _should_delete_after_download(environ)
+    if should_delete:
+        _remove_downloaded_file(report_id, file_key="path")
     headers = [
         ("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         ("Content-Disposition", f'attachment; filename="{report["download_name"]}"'),
@@ -146,7 +186,7 @@ def _handle_download(report_id: str, start_response):
     return [response_body]
 
 
-def _handle_download_ppt(report_id: str, start_response):
+def _handle_download_ppt(environ, report_id: str, start_response):
     report = REPORTS.get(report_id)
     if report is None:
         return _html_response(
@@ -164,6 +204,9 @@ def _handle_download_ppt(report_id: str, start_response):
         )
 
     response_body = presentation_path.read_bytes()
+    should_delete = _should_delete_after_download(environ)
+    if should_delete:
+        _remove_downloaded_file(report_id, file_key="presentation_path")
     headers = [
         (
             "Content-Type",
@@ -174,6 +217,56 @@ def _handle_download_ppt(report_id: str, start_response):
     ]
     start_response("200 OK", headers)
     return [response_body]
+
+
+def _cleanup_expired_reports() -> None:
+    now = time.time()
+    expired_ids = []
+    for report_id, report in REPORTS.items():
+        created_at = float(report.get("created_at", now))
+        if now - created_at > REPORT_TTL_SECONDS:
+            expired_ids.append(report_id)
+    for report_id in expired_ids:
+        _remove_report(report_id)
+
+
+def _remove_report(report_id: str) -> None:
+    report = REPORTS.pop(report_id, None)
+    if report is None:
+        return
+    for key in ("path", "presentation_path"):
+        file_path = report.get(key)
+        if not file_path:
+            continue
+        try:
+            Path(file_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _remove_downloaded_file(report_id: str, *, file_key: str) -> None:
+    report = REPORTS.get(report_id)
+    if report is None:
+        return
+
+    file_path = report.get(file_key)
+    if file_path:
+        try:
+            Path(file_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    excel_exists = Path(report["path"]).exists() if report.get("path") else False
+    ppt_exists = Path(report["presentation_path"]).exists() if report.get("presentation_path") else False
+    if not excel_exists and not ppt_exists:
+        REPORTS.pop(report_id, None)
+
+
+def _should_delete_after_download(environ) -> bool:
+    if not isinstance(environ, dict):
+        return False
+    query = parse_qs(environ.get("QUERY_STRING", ""), keep_blank_values=True)
+    return query.get("delete", ["0"])[0] == "1"
 
 
 def _handle_font(font_name: str, start_response):
@@ -352,6 +445,16 @@ def _render_home() -> str:
       width: 100%;
       box-shadow: 0 16px 34px var(--glow);
     }
+    button[disabled] {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    .processing-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      display: none;
+    }
     ul {
       margin: 0;
       padding-left: 20px;
@@ -427,7 +530,7 @@ def _render_home() -> str:
     <section class="grid">
       <div class="panel">
         <h2 class="card-title">Gerar relatorio</h2>
-        <form action="/process" method="post" enctype="multipart/form-data">
+        <form id="process_form" action="/process" method="post" enctype="multipart/form-data">
           <label for="billing_file">Arquivo de billing</label>
           <input id="billing_file" type="file" name="billing_file" accept=".csv,.pdf" required>
 
@@ -450,7 +553,8 @@ def _render_home() -> str:
           <label for="llm_model">Modelo LLM (Gemini / Google AI Studio)</label>
           <input id="llm_model" type="text" name="llm_model" value="gemini-2.5-flash" placeholder="Ex.: gemini-2.5-flash">
 
-          <button type="submit">Processar relatorios</button>
+          <button id="submit_button" type="submit" data-idle-text="Processar relatorios" data-processing-text="Processando...">Processar relatorios</button>
+          <p id="processing_note" class="processing-note">Processamento em andamento. Aguarde a conclusao.</p>
         </form>
         <p class="note">
           Para AWS Invoice, a regra padrao remove linhas sem <code>LinkedAccountName</code>
@@ -516,6 +620,22 @@ def _render_home() -> str:
 
       cloudSelect.addEventListener("change", syncFormatOptions);
       syncFormatOptions();
+
+      const form = document.getElementById("process_form");
+      const submitButton = document.getElementById("submit_button");
+      const processingNote = document.getElementById("processing_note");
+      let submitting = false;
+
+      form.addEventListener("submit", function (event) {
+        if (submitting) {
+          event.preventDefault();
+          return;
+        }
+        submitting = true;
+        submitButton.disabled = true;
+        submitButton.textContent = submitButton.dataset.processingText || "Processando...";
+        processingNote.style.display = "block";
+      });
     })();
   </script>
 </body>
@@ -654,6 +774,14 @@ def _render_result(
       flex-wrap: wrap;
       margin-top: 18px;
     }}
+    .delete-toggle {{
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }}
     .button {{
       appearance: none;
       text-decoration: none;
@@ -709,10 +837,14 @@ def _render_result(
       </div>
 
       <div class="actions">
-        <a class="button" href="/download/{report_id}">Baixar Excel</a>
-        <a class="ghost" href="/download-ppt/{report_id}">Baixar PowerPoint</a>
+        <a id="download_excel" class="button" href="/download/{report_id}">Baixar Excel</a>
+        <a id="download_ppt" class="ghost" href="/download-ppt/{report_id}">Baixar PowerPoint</a>
         <a class="ghost" href="/">Processar outro arquivo</a>
       </div>
+      <label class="delete-toggle" for="delete_after_download">
+        <input id="delete_after_download" type="checkbox">
+        Apagar arquivos da memoria apos download
+      </label>
     </section>
 
     <section class="grid">
@@ -726,6 +858,21 @@ def _render_result(
       </div>
     </section>
   </main>
+  <script>
+    (function () {{
+      const toggle = document.getElementById("delete_after_download");
+      const excel = document.getElementById("download_excel");
+      const ppt = document.getElementById("download_ppt");
+      const baseExcel = excel.getAttribute("href");
+      const basePpt = ppt.getAttribute("href");
+
+      toggle.addEventListener("change", function () {{
+        const suffix = toggle.checked ? "?delete=1" : "";
+        excel.setAttribute("href", baseExcel + suffix);
+        ppt.setAttribute("href", basePpt + suffix);
+      }});
+    }})();
+  </script>
 </body>
 </html>
 """

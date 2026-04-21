@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pdfplumber
 
+from app.input_validation import validate_billing_input_file
 from app.report_types import ParserResult
 
 HEADER_AMOUNT_RE = re.compile(
@@ -53,6 +54,7 @@ REGION_NAME_TO_CODE = {
 
 
 def load_aws_billing_pdf(pdf_path: Path) -> ParserResult:
+    validate_billing_input_file(pdf_path, "aws-billing-pdf")
     rows: list[dict[str, object]] = []
     total_text_lines = 0
     skipped_lines = 0

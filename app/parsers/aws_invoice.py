@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from app.input_validation import validate_billing_input_file
 from app.report_types import ParserResult
 
 
@@ -49,6 +50,7 @@ DESCRIPTION_REGION_MAP = {
 
 
 def load_aws_invoice_csv(csv_path: Path) -> ParserResult:
+    validate_billing_input_file(csv_path, "aws-invoice")
     raw_df = pd.read_csv(csv_path, low_memory=False)
     _validate_required_columns(raw_df)
     raw_cost_total = pd.to_numeric(raw_df["TotalCost"], errors="coerce").fillna(0.0).sum()

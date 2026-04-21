@@ -11,6 +11,7 @@ from app.aggregator import (
     summarize_by_service,
 )
 from app.excel_writer import write_billing_report
+from app.input_validation import validate_billing_input_file
 from app.llm_report import build_llm_report_artifacts
 from app.normalizer import load_and_normalize_csv
 from app.oci_mapper import build_oci_mapping, load_mapping_table
@@ -33,6 +34,7 @@ def process_billing_file(
     llm_model: str = "gemini-2.5-flash",
 ) -> Path:
     data_quality_df = pd.DataFrame()
+    validate_billing_input_file(input_path, file_format)
 
     if file_format == "aws-invoice":
         invoice_result = load_aws_invoice_csv(input_path)
