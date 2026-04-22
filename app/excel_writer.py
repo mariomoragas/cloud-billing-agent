@@ -213,11 +213,12 @@ def _format_currency(value: float) -> str:
 
 
 def _add_service_cost_chart(workbook, charts_sheet) -> None:
+    service_category_col = _resolve_service_category_column(workbook["Resumo_Servicos"])
     service_sheet = _create_ranked_sheet(
         workbook,
         title="Chart_Service_Cost",
         source_sheet="Resumo_Servicos",
-        category_col=2,
+        category_col=service_category_col,
         value_col=4,
         top_n=8,
     )
@@ -286,11 +287,12 @@ def _add_region_cost_chart(workbook, charts_sheet) -> None:
 
 
 def _add_service_cost_share_chart(workbook, charts_sheet) -> None:
+    service_category_col = _resolve_service_category_column(workbook["Resumo_Servicos"])
     service_sheet = _create_ranked_sheet(
         workbook,
         title="Chart_Service_Share",
         source_sheet="Resumo_Servicos",
-        category_col=2,
+        category_col=service_category_col,
         value_col=4,
         top_n=5,
     )
@@ -397,3 +399,15 @@ def _create_ranked_sheet(
         worksheet[f"A{index}"] = category
         worksheet[f"B{index}"] = value
     return worksheet
+
+
+def _resolve_service_category_column(service_sheet) -> int:
+    preferred_headers = ["chart_group_label", "service_name_original"]
+    header_map = {
+        str(service_sheet.cell(row=1, column=column).value or "").strip(): column
+        for column in range(1, service_sheet.max_column + 1)
+    }
+    for header in preferred_headers:
+        if header in header_map:
+            return header_map[header]
+    return 2

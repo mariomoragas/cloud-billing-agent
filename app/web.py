@@ -291,10 +291,11 @@ def _build_preview_context(result) -> dict[str, object]:
         currency = str(result.raw_df["currency"].mode().iloc[0])
 
     top_services = []
+    service_label_column = _resolve_preview_service_label_column(result.service_summary_df)
     for _, row in result.service_summary_df.head(5).iterrows():
         top_services.append(
             {
-                "service": str(row["service_name_original"]),
+                "service": str(row.get(service_label_column, row.get("service_name_original", ""))),
                 "cost": float(row["total_cost"]),
             }
         )
@@ -313,6 +314,14 @@ def _build_preview_context(result) -> dict[str, object]:
         "unmapped_services": unmapped_services,
         "raw_rows": len(result.raw_df),
     }
+
+
+def _resolve_preview_service_label_column(service_summary_df) -> str:
+    if "chart_group_label" in service_summary_df.columns:
+        values = service_summary_df["chart_group_label"].fillna("").astype(str).str.strip()
+        if (values != "").any():
+            return "chart_group_label"
+    return "service_name_original"
 
 
 def _render_home() -> str:

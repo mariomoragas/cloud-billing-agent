@@ -188,7 +188,8 @@ def _add_kpi_slide(
     for index, (label, value) in enumerate(cards):
         _add_kpi_card(slide, label, value, 0.76 + (index * 3.0), 1.6)
 
-    top_service = _top_label(service_summary_df, "service_name_original")
+    service_label_column = _resolve_service_label_column(service_summary_df)
+    top_service = _top_label(service_summary_df, service_label_column)
     insight = (
         f"The current period is concentrated in {top_service}. "
         f"Use the next slides to prioritize OCI conversion, service rationalization and financial review."
@@ -205,7 +206,8 @@ def _add_top_services_slide(
     _paint_slide(slide)
     _add_standard_frame(slide, "Top Services by Cost", slide_number)
 
-    top_services = _top_with_others(service_summary_df, "service_name_original", "total_cost", 8)
+    service_label_column = _resolve_service_label_column(service_summary_df)
+    top_services = _top_with_others(service_summary_df, service_label_column, "total_cost", 8)
     chart_data = ChartData()
     chart_data.categories = list(top_services["label"])
     chart_data.add_series("Cost", list(top_services["value"]))
@@ -247,7 +249,8 @@ def _add_service_share_slide(
     _paint_slide(slide)
     _add_standard_frame(slide, "Service Cost Share", slide_number)
 
-    top_services = _top_with_others(service_summary_df, "service_name_original", "total_cost", 5)
+    service_label_column = _resolve_service_label_column(service_summary_df)
+    top_services = _top_with_others(service_summary_df, service_label_column, "total_cost", 5)
     chart_data = ChartData()
     chart_data.categories = list(top_services["label"])
     chart_data.add_series("Cost Share", list(top_services["value"]))
@@ -858,6 +861,14 @@ def _top_label(df: pd.DataFrame, column: str) -> str:
         return "the leading service"
     value = str(df.iloc[0][column]).strip()
     return value or "the leading service"
+
+
+def _resolve_service_label_column(service_summary_df: pd.DataFrame) -> str:
+    if "chart_group_label" in service_summary_df.columns:
+        values = service_summary_df["chart_group_label"].fillna("").astype(str).str.strip()
+        if (values != "").any():
+            return "chart_group_label"
+    return "service_name_original"
 
 
 def _rgb_tuple(color: RGBColor) -> tuple[int, int, int]:

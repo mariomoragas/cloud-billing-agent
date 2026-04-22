@@ -58,6 +58,8 @@ def process_billing_file(
         raw_df = load_and_normalize_csv(input_path, default_cloud=cloud)
 
     service_summary_df = summarize_by_service(raw_df)
+    if file_format == "aws-billing-pdf":
+        service_summary_df = _apply_pdf_chart_grouping(service_summary_df)
     region_summary_df = summarize_by_region(raw_df)
     mapping_df = load_mapping_table(mapping_path)
     oci_mapping_df = build_oci_mapping(service_summary_df, mapping_df)
@@ -139,3 +141,15 @@ def process_billing_file(
         llm_recommendations_df=llm_artifacts.recommendations_df,
         llm_confidence_df=llm_artifacts.confidence_df,
     )
+
+
+def _apply_pdf_chart_grouping(service_summary_df: pd.DataFrame) -> pd.DataFrame:
+    summary = service_summary_df.copy()
+    if "primary_product_code" in summary.columns:
+        product_code = summary["primary_product_code"].fillna("").astype(str).str.strip()
+    else:
+        product_code = pd.Series([""] * len(summary), index=summary.index)
+
+    service_name = summary["service_name_original"].fillna("").astype(str).str.strip()
+    summary["chart_group_label"] = product_code.where(product_code != "", service_name)
+    return summary
