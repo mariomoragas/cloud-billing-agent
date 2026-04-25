@@ -15,7 +15,7 @@ Esqueleto funcional em Python para:
 
 ## Requisitos
 
-- Python 3.11 ou superior
+- Python 3.11
 
 ## Instalacao
 
