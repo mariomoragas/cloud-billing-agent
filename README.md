@@ -10,6 +10,7 @@ Esqueleto funcional em Python para:
 - consolidar custo e quantidade por servico e por regiao
 - gerar um Excel com abas de dados, resumo, graficos e mapeamento OCI
 - gerar um PowerPoint executivo com slides e graficos principais
+- incluir grafico/matriz de complexidade de migracao (top servicos por custo)
 - apontar servicos sem de-para para revisao manual
 - gerar analise FinOps/migracao OCI via Gemini API do Google AI Studio (com fallback local quando API indisponivel)
 
@@ -295,6 +296,7 @@ Slides incluidos:
 - top servicos por custo
 - participacao percentual por servico
 - top regioes por custo
+- matriz de complexidade de migracao dos top servicos por custo (score 1-5)
 - mapeamento consolidado AWS -> OCI
 - (quando habilitado) secao LLM FinOps com baseline/projecao/ROI e plano de migracao
 - servicos sem mapeamento OCI

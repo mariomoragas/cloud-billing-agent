@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.chart import BarChart, DoughnutChart, Reference
+from openpyxl.chart import BarChart, DoughnutChart, Reference, ScatterChart, Series
 from openpyxl.chart.label import DataLabelList
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -114,6 +114,7 @@ def _create_charts_sheet(workbook) -> None:
     _add_service_cost_chart(workbook, charts_sheet)
     _add_service_cost_share_chart(workbook, charts_sheet)
     _add_region_cost_chart(workbook, charts_sheet)
+    _add_migration_complexity_chart(workbook, charts_sheet)
     _add_optional_chart(
         workbook,
         charts_sheet,
@@ -160,7 +161,7 @@ def _style_charts_canvas(charts_sheet) -> None:
 
     for column in range(1, 22):
         charts_sheet.column_dimensions[get_column_letter(column)].width = 16
-    for row in range(1, 90):
+    for row in range(1, 120):
         charts_sheet.row_dimensions[row].height = 22
 
 
@@ -363,6 +364,53 @@ def _add_optional_chart(
     charts_sheet.add_chart(chart, anchor)
 
 
+def _add_migration_complexity_chart(workbook, charts_sheet) -> None:
+    if "Mapeamento_OCI" not in workbook.sheetnames:
+        return
+
+    matrix_sheet = _create_complexity_sheet(workbook, title="Chart_Migration_Complexity", top_n=10)
+    if matrix_sheet.max_row < 2:
+        return
+
+    bar = BarChart()
+    bar.type = "bar"
+    bar.style = 10
+    bar.title = "Complexidade de migracao (Top servicos por custo)"
+    bar.y_axis.title = "Servico"
+    bar.x_axis.title = "Complexity Score (1=Rehost ... 5=Retain)"
+    bar.height = 10
+    bar.width = 8.8
+    bar.legend = None
+    bar.varyColors = True
+    bar.gapWidth = 45
+
+    max_row = matrix_sheet.max_row
+    data = Reference(matrix_sheet, min_col=3, min_row=1, max_row=max_row)
+    categories = Reference(matrix_sheet, min_col=1, min_row=2, max_row=max_row)
+    bar.add_data(data, titles_from_data=True)
+    bar.set_categories(categories)
+    bar.dataLabels = DataLabelList()
+    bar.dataLabels.showVal = True
+    charts_sheet.add_chart(bar, "A69")
+
+    scatter = ScatterChart()
+    scatter.title = "Matriz custo x complexidade"
+    scatter.x_axis.title = "Ranking por custo (1 = maior custo)"
+    scatter.y_axis.title = "Complexity Score"
+    scatter.height = 10
+    scatter.width = 8.8
+    scatter.legend = None
+    scatter.y_axis.scaling.min = 0
+    scatter.y_axis.scaling.max = 5
+    scatter.y_axis.majorUnit = 1
+
+    xvalues = Reference(matrix_sheet, min_col=4, min_row=2, max_row=max_row)
+    yvalues = Reference(matrix_sheet, min_col=3, min_row=2, max_row=max_row)
+    series = Series(yvalues, xvalues, title_from_data=False)
+    scatter.series.append(series)
+    charts_sheet.add_chart(scatter, "J69")
+
+
 def _create_ranked_sheet(
     workbook,
     title: str,
@@ -398,6 +446,69 @@ def _create_ranked_sheet(
     for index, (category, value) in enumerate(top_rows, start=2):
         worksheet[f"A{index}"] = category
         worksheet[f"B{index}"] = value
+    return worksheet
+
+
+def _create_complexity_sheet(workbook, title: str, top_n: int):
+    if title in workbook.sheetnames:
+        del workbook[title]
+
+    source = workbook["Mapeamento_OCI"]
+    header_map = {
+        str(source.cell(row=1, column=column).value or "").strip(): column
+        for column in range(1, source.max_column + 1)
+    }
+    required_headers = ["service_name_original", "total_cost", "complexity_score"]
+    if not all(header in header_map for header in required_headers):
+        worksheet = workbook.create_sheet(title)
+        worksheet.sheet_state = "hidden"
+        worksheet["A1"] = "service"
+        worksheet["B1"] = "total_cost"
+        worksheet["C1"] = "complexity_score"
+        worksheet["D1"] = "cost_rank"
+        return worksheet
+
+    service_col = header_map["service_name_original"]
+    product_col = header_map.get("primary_product_code")
+    cost_col = header_map["total_cost"]
+    complexity_col = header_map["complexity_score"]
+    oci_col = header_map.get("oci_service")
+
+    rows: list[tuple[str, float, int]] = []
+    for row in range(2, source.max_row + 1):
+        oci_service = str(source.cell(row=row, column=oci_col).value or "").strip() if oci_col else ""
+        if oci_service == "REVIEW_REQUIRED":
+            continue
+        service_name = str(source.cell(row=row, column=service_col).value or "").strip()
+        product_code = str(source.cell(row=row, column=product_col).value or "").strip() if product_col else ""
+        label = product_code if product_code else (service_name or "UNSPECIFIED")
+
+        raw_cost = source.cell(row=row, column=cost_col).value
+        raw_complexity = source.cell(row=row, column=complexity_col).value
+        if not isinstance(raw_cost, (int, float)):
+            continue
+        try:
+            complexity = int(float(raw_complexity))
+        except (TypeError, ValueError):
+            complexity = 2
+        complexity = max(1, min(5, complexity))
+        rows.append((label, float(raw_cost), complexity))
+
+    rows.sort(key=lambda item: item[1], reverse=True)
+    top_rows = rows[:top_n]
+
+    worksheet = workbook.create_sheet(title)
+    worksheet.sheet_state = "hidden"
+    worksheet["A1"] = "service"
+    worksheet["B1"] = "total_cost"
+    worksheet["C1"] = "complexity_score"
+    worksheet["D1"] = "cost_rank"
+
+    for index, (label, cost, complexity) in enumerate(top_rows, start=2):
+        worksheet.cell(row=index, column=1, value=label)
+        worksheet.cell(row=index, column=2, value=cost)
+        worksheet.cell(row=index, column=3, value=complexity)
+        worksheet.cell(row=index, column=4, value=index - 1)
     return worksheet
 
 

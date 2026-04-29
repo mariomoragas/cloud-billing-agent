@@ -67,6 +67,8 @@ def write_powerpoint_report(
     slide_number += 1
     _add_region_slide(presentation, region_summary_df, slide_number=slide_number)
     slide_number += 1
+    _add_migration_complexity_slide(presentation, oci_mapping_df, slide_number=slide_number)
+    slide_number += 1
     _add_mapping_slide(presentation, oci_mapping_df, slide_number=slide_number)
     slide_number += 1
     if llm_report_df is not None and not llm_report_df.empty:
@@ -321,6 +323,147 @@ def _add_region_slide(
         2.8,
         2.25,
     )
+
+
+def _add_migration_complexity_slide(
+    presentation: Presentation,
+    oci_mapping_df: pd.DataFrame,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Complexidade de Migracao", slide_number)
+    _add_subtitle(slide, "Top servicos por custo posicionados por score de complexidade", 0.76, 1.18, 7.8)
+
+    points = _build_complexity_points(oci_mapping_df, top_n=10)
+    if points.empty:
+        _add_insight_box(
+            slide,
+            "Nao ha dados suficientes de complexidade para os servicos mapeados.",
+            0.76,
+            2.0,
+            8.8,
+            1.6,
+            title_size=12,
+            body_size=12,
+        )
+        return
+
+    panel_left = 0.76
+    panel_top = 1.55
+    panel_width = 8.7
+    panel_height = 4.9
+
+    panel = slide.shapes.add_shape(
+        MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+        Inches(panel_left),
+        Inches(panel_top),
+        Inches(panel_width),
+        Inches(panel_height),
+    )
+    panel.fill.solid()
+    panel.fill.fore_color.rgb = RGBColor(240, 238, 236)
+    panel.line.color.rgb = COLOR_BORDER
+
+    vertical = slide.shapes.add_shape(
+        MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+        Inches(panel_left + (panel_width * 0.5)),
+        Inches(panel_top),
+        Inches(0.01),
+        Inches(panel_height),
+    )
+    vertical.fill.solid()
+    vertical.fill.fore_color.rgb = COLOR_PRIMARY
+    vertical.line.fill.background()
+
+    horizontal = slide.shapes.add_shape(
+        MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+        Inches(panel_left),
+        Inches(panel_top + (panel_height * 0.5)),
+        Inches(panel_width),
+        Inches(0.01),
+    )
+    horizontal.fill.solid()
+    horizontal.fill.fore_color.rgb = COLOR_PRIMARY
+    horizontal.line.fill.background()
+
+    x_axis = slide.shapes.add_textbox(Inches(panel_left + 2.4), Inches(panel_top + panel_height + 0.05), Inches(4.0), Inches(0.25))
+    _configure_text_frame(x_axis.text_frame, margin_left=0.01, margin_right=0.01)
+    p_x = x_axis.text_frame.paragraphs[0]
+    p_x.text = "Prazo da Migracao"
+    _style_paragraph(p_x, bold=False, size=12, color=_rgb_tuple(COLOR_MUTED))
+
+    y_axis = slide.shapes.add_textbox(Inches(panel_left - 0.65), Inches(panel_top + 1.6), Inches(0.6), Inches(2.0))
+    _configure_text_frame(y_axis.text_frame, margin_left=0.01, margin_right=0.01)
+    p_y = y_axis.text_frame.paragraphs[0]
+    p_y.text = "Custo da Migracao"
+    _style_paragraph(p_y, bold=False, size=11, color=_rgb_tuple(COLOR_MUTED))
+
+    for index, row in points.iterrows():
+        rank = float(index + 1)
+        complexity = float(row["complexity_score"])
+        label = str(row["label"])
+        score_color = _complexity_color(int(complexity))
+
+        x_ratio = (rank - 1.0) / max(len(points) - 1, 1)
+        y_ratio = (complexity - 1.0) / 4.0
+        x = panel_left + 0.35 + (x_ratio * (panel_width - 1.1))
+        y = panel_top + (panel_height - 0.75) - (y_ratio * (panel_height - 1.0))
+        y = y - (0.18 if (index % 2) else 0.0)
+
+        bubble = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.OVAL,
+            Inches(x),
+            Inches(y),
+            Inches(0.42),
+            Inches(0.42),
+        )
+        bubble.fill.solid()
+        bubble.fill.fore_color.rgb = score_color
+        bubble.line.fill.background()
+        bubble_tf = bubble.text_frame
+        _configure_text_frame(bubble_tf, margin_left=0.0, margin_right=0.0, margin_top=0.0, margin_bottom=0.0)
+        b = bubble_tf.paragraphs[0]
+        b.text = str(int(complexity))
+        _style_paragraph(b, bold=True, size=11, color=(255, 255, 255))
+
+        tag = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+            Inches(max(panel_left + 0.05, x - 0.92)),
+            Inches(y + 0.44),
+            Inches(1.85),
+            Inches(0.36),
+        )
+        tag.fill.solid()
+        tag.fill.fore_color.rgb = _complexity_tag_color(int(complexity))
+        tag.line.fill.background()
+        tag_tf = tag.text_frame
+        _configure_text_frame(tag_tf, margin_left=0.03, margin_right=0.03)
+        t = tag_tf.paragraphs[0]
+        t.text = label[:30]
+        _style_paragraph(t, bold=False, size=10, color=_rgb_tuple(COLOR_TEXT))
+
+    low_complexity = points[points["complexity_score"] <= 2]
+    low_count = int(len(low_complexity))
+    total_top_cost = float(points["total_cost"].sum()) if not points.empty else 0.0
+    low_cost_share = (
+        float(low_complexity["total_cost"].sum()) / total_top_cost * 100.0
+        if total_top_cost > 0
+        else 0.0
+    )
+    cloud = _mode_or_default(oci_mapping_df, "cloud", "cloud").upper()
+
+    right = slide.shapes.add_textbox(Inches(9.85), Inches(2.1), Inches(3.1), Inches(3.2))
+    _configure_text_frame(right.text_frame, margin_left=0.01, margin_right=0.01)
+    p1 = right.text_frame.paragraphs[0]
+    p1.text = f"{low_count} dos 10"
+    _style_paragraph(p1, bold=False, size=30, color=_rgb_tuple(COLOR_TEXT))
+    p2 = right.text_frame.add_paragraph()
+    p2.text = f"principais servicos na {cloud} possuem baixa complexidade de migracao,"
+    _style_paragraph(p2, bold=False, size=13, color=_rgb_tuple(COLOR_TEXT))
+    p3 = right.text_frame.add_paragraph()
+    p3.text = f"representando {low_cost_share:.0f}% do custo total"
+    _style_paragraph(p3, bold=True, size=16, color=_rgb_tuple(COLOR_TEXT))
 
 
 def _add_unmapped_slide(
@@ -869,6 +1012,53 @@ def _resolve_service_label_column(service_summary_df: pd.DataFrame) -> str:
         if (values != "").any():
             return "chart_group_label"
     return "service_name_original"
+
+
+def _build_complexity_points(oci_mapping_df: pd.DataFrame, top_n: int = 10) -> pd.DataFrame:
+    if oci_mapping_df.empty:
+        return pd.DataFrame(columns=["label", "total_cost", "complexity_score"])
+
+    working = oci_mapping_df.copy()
+    if "oci_service" in working.columns:
+        working = working[working["oci_service"].astype(str).str.strip() != "REVIEW_REQUIRED"]
+    if working.empty:
+        return pd.DataFrame(columns=["label", "total_cost", "complexity_score"])
+
+    service = working.get("service_name_original", pd.Series([""] * len(working))).fillna("").astype(str).str.strip()
+    product = working.get("primary_product_code", pd.Series([""] * len(working))).fillna("").astype(str).str.strip()
+    working["label"] = product.where(product != "", service).replace("", "UNSPECIFIED")
+    working["total_cost"] = pd.to_numeric(working.get("total_cost", 0.0), errors="coerce").fillna(0.0)
+    working["complexity_score"] = (
+        pd.to_numeric(working.get("complexity_score", 2), errors="coerce")
+        .fillna(2)
+        .astype(int)
+        .clip(1, 5)
+    )
+
+    grouped = (
+        working.groupby(["label", "complexity_score"], as_index=False)
+        .agg(total_cost=("total_cost", "sum"))
+        .sort_values("total_cost", ascending=False)
+        .head(top_n)
+        .reset_index(drop=True)
+    )
+    return grouped
+
+
+def _complexity_color(score: int) -> RGBColor:
+    if score <= 2:
+        return RGBColor(124, 151, 88)
+    if score == 3:
+        return RGBColor(187, 146, 72)
+    return RGBColor(153, 73, 64)
+
+
+def _complexity_tag_color(score: int) -> RGBColor:
+    if score <= 2:
+        return RGBColor(196, 219, 192)
+    if score == 3:
+        return RGBColor(242, 221, 161)
+    return RGBColor(236, 202, 197)
 
 
 def _rgb_tuple(color: RGBColor) -> tuple[int, int, int]:

@@ -23,6 +23,10 @@ def load_mapping_table(mapping_csv: Path) -> pd.DataFrame:
             + ", ".join(sorted(missing))
         )
     mapping_df["source_cloud"] = mapping_df["source_cloud"].astype(str).str.lower()
+    if "migration_strategy" not in mapping_df.columns:
+        mapping_df["migration_strategy"] = ""
+    if "complexity_score" not in mapping_df.columns:
+        mapping_df["complexity_score"] = ""
     return mapping_df
 
 
@@ -52,6 +56,8 @@ def build_oci_mapping(
                     "oci_service": "REVIEW_REQUIRED",
                     "rule_type": "unmapped",
                     "confidence": 0.0,
+                    "migration_strategy": "Retain",
+                    "complexity_score": 5,
                     "notes": "Servico sem regra de equivalencia. Revisao manual necessaria.",
                 }
             )
@@ -69,6 +75,8 @@ def build_oci_mapping(
                 "oci_service": match["oci_service"],
                 "rule_type": match["rule_type"],
                 "confidence": float(match["confidence"]),
+                "migration_strategy": _normalize_strategy(match.get("migration_strategy", "")),
+                "complexity_score": _normalize_complexity(match.get("complexity_score", "")),
                 "notes": _build_note(match),
             }
         )
@@ -126,3 +134,18 @@ def _build_note(match: pd.Series) -> str:
     if str(match["rule_type"]).lower() == "exact":
         return "Mapeamento realizado por regra exata."
     return f"Mapeamento realizado por padrao: {match['source_pattern']}"
+
+
+def _normalize_complexity(value: object) -> int:
+    try:
+        numeric = int(float(str(value).strip()))
+    except (TypeError, ValueError):
+        return 2
+    return max(1, min(5, numeric))
+
+
+def _normalize_strategy(value: object) -> str:
+    text = str(value or "").strip()
+    if text:
+        return text
+    return "Replatform"
