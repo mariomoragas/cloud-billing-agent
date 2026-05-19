@@ -28,16 +28,16 @@ GCP_COST_TABLE_REQUIRED_COLUMNS = {
     "Usage unit",
 }
 
+CSV_ENCODINGS = ("utf-8-sig", "cp1252", "latin-1")
+
 
 def load_gcp_cost_table_csv(csv_path: Path) -> ParserResult:
     validate_billing_input_file(csv_path, "gcp-cost-table")
-    metadata, header_row_index = _read_metadata_and_header_index(csv_path)
-    raw_df = pd.read_csv(
-        csv_path,
-        skiprows=header_row_index,
-        dtype=str,
-        keep_default_na=False,
-        encoding="utf-8-sig",
+    metadata, header_row_index, encoding = _read_metadata_and_header_index(csv_path)
+    raw_df = _read_cost_table_with_fallbacks(
+        csv_path=csv_path,
+        header_row_index=header_row_index,
+        preferred_encoding=encoding,
     )
     _validate_required_columns(raw_df)
 
@@ -102,16 +102,53 @@ def load_gcp_cost_table_csv(csv_path: Path) -> ParserResult:
     return ParserResult(dataframe=normalized.reset_index(drop=True), data_quality=data_quality)
 
 
-def _read_metadata_and_header_index(csv_path: Path) -> tuple[dict[str, str], int]:
-    metadata: dict[str, str] = {}
-    with csv_path.open("r", encoding="utf-8-sig", newline="") as file:
-        reader = csv.reader(file)
-        for index, row in enumerate(reader):
-            if row and row[0].strip() == "Billing account name":
-                return metadata, index
-            if len(row) >= 2 and row[0].strip():
-                metadata[row[0].strip()] = row[1].strip()
-    raise ValueError("CSV GCP Cost table sem cabecalho 'Billing account name'.")
+def _read_metadata_and_header_index(csv_path: Path) -> tuple[dict[str, str], int, str]:
+    errors: list[str] = []
+    for encoding in CSV_ENCODINGS:
+        metadata: dict[str, str] = {}
+        try:
+            with csv_path.open("r", encoding=encoding, newline="") as file:
+                reader = csv.reader(file)
+                for index, row in enumerate(reader):
+                    if row and row[0].strip() == "Billing account name":
+                        return metadata, index, encoding
+                    if len(row) >= 2 and row[0].strip():
+                        metadata[row[0].strip()] = row[1].strip()
+        except UnicodeDecodeError as exc:
+            errors.append(f"{encoding}: {exc}")
+            continue
+    raise ValueError(
+        "CSV GCP Cost table sem cabecalho 'Billing account name' em encodings conhecidos. "
+        + " | ".join(errors[:2])
+    )
+
+
+def _read_cost_table_with_fallbacks(
+    *,
+    csv_path: Path,
+    header_row_index: int,
+    preferred_encoding: str,
+) -> pd.DataFrame:
+    encodings = [preferred_encoding] + [
+        encoding for encoding in CSV_ENCODINGS if encoding != preferred_encoding
+    ]
+    errors: list[str] = []
+    for encoding in encodings:
+        try:
+            return pd.read_csv(
+                csv_path,
+                skiprows=header_row_index,
+                dtype=str,
+                keep_default_na=False,
+                encoding=encoding,
+            )
+        except UnicodeDecodeError as exc:
+            errors.append(f"{encoding}: {exc}")
+            continue
+    raise ValueError(
+        "Falha ao ler linhas de custo do CSV GCP nos encodings conhecidos. "
+        + " | ".join(errors[:2])
+    )
 
 
 def _validate_required_columns(raw_df: pd.DataFrame) -> None:
