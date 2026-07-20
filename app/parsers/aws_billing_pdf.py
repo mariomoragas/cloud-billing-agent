@@ -10,20 +10,22 @@ from app.input_validation import validate_billing_input_file
 from app.report_types import ParserResult
 
 HEADER_AMOUNT_RE = re.compile(
-    r"^(?P<label>.+?)\s+USD\s+(?P<amount>[0-9,]+(?:\.\d+)?)\s*$"
+    r"^(?P<label>.+?)\s+USD\s+(?P<amount>[0-9][0-9.,]*)\s*$"
 )
 PAREN_AMOUNT_LINE_RE = re.compile(
-    r"^(?P<label>.+?)\s+\(USD\s*(?P<amount>[0-9,]+(?:\.\d+)?)\)\s*$"
+    r"^(?P<label>.+?)\s+\(USD\s*(?P<amount>[0-9][0-9.,]*)\)\s*$"
 )
 GRAND_TOTAL_RE = re.compile(
-    r"Grand total:\s*USD\s*(?P<amount>[0-9,]+(?:\.\d+)?)",
+    r"(?:Grand total|Total geral(?: estimado)?):\s*USD\s*(?P<amount>[0-9][0-9.,]*)",
     flags=re.IGNORECASE,
 )
 USAGE_AMOUNT_SUFFIX_RE = re.compile(
-    r"(?:\bUSD\s*(?P<plain>[0-9,]+(?:\.\d+)?)|\(USD\s*(?P<paren>[0-9,]+(?:\.\d+)?)\))\s*$"
+    r"(?:(?P<minus>-)\s*USD\s*(?P<plain_negative>[0-9][0-9.,]*)|"
+    r"\bUSD\s*(?P<plain>[0-9][0-9.,]*)|"
+    r"\(USD\s*(?P<paren>[0-9][0-9.,]*)\))\s*$"
 )
 QTY_UNIT_SUFFIX_RE = re.compile(
-    r"(?P<qty>[0-9][0-9,]*(?:\.\d+)?)\s+"
+    r"(?P<qty>[0-9][0-9.,]*)\s+"
     r"(?P<unit>[A-Za-z][A-Za-z0-9/%().:-]*(?:\s+[A-Za-z][A-Za-z0-9/%().:-]*){0,2})\s*$"
 )
 PERIOD_RE = re.compile(r"\b(20\d{2})[-/](0[1-9]|1[0-2])\b")
@@ -67,6 +69,8 @@ def load_aws_billing_pdf(pdf_path: Path) -> ParserResult:
     seen_discount_lines: set[str] = set()
 
     with pdfplumber.open(pdf_path) as pdf:
+        first_page_text = pdf.pages[0].extract_text() if pdf.pages else ""
+        decimal_comma = _uses_decimal_comma(first_page_text or "")
         for page in pdf.pages:
             page_text = page.extract_text() or ""
             lines = [line.strip() for line in page_text.splitlines() if line.strip()]
@@ -75,13 +79,13 @@ def load_aws_billing_pdf(pdf_path: Path) -> ParserResult:
             if not period:
                 period = _extract_period(page_text)
             if grand_total == 0.0:
-                grand_total = _extract_grand_total(page_text)
+                grand_total = _extract_grand_total(page_text, decimal_comma=decimal_comma)
 
             for line in lines:
                 if line.lower() == "description usage quantity amount in usd":
                     continue
 
-                parsed_line = _parse_usage_line(line)
+                parsed_line = _parse_usage_line(line, decimal_comma=decimal_comma)
                 if parsed_line is not None:
                     description, usage_quantity, usage_unit, cost = parsed_line
                     inferred_region = _infer_region(description) or current_region or ""
@@ -103,7 +107,10 @@ def load_aws_billing_pdf(pdf_path: Path) -> ParserResult:
                     )
                     continue
 
-                discount_line = _parse_discount_adjustment_line(line)
+                discount_line = _parse_discount_adjustment_line(
+                    line,
+                    decimal_comma=decimal_comma,
+                )
                 if discount_line is not None:
                     service_name, amount = discount_line
                     if line in seen_discount_lines:
@@ -199,18 +206,23 @@ def load_aws_billing_pdf(pdf_path: Path) -> ParserResult:
     return ParserResult(dataframe=normalized_df, data_quality=data_quality)
 
 
-def _parse_usage_line(line: str) -> tuple[str, float, str, float] | None:
+def _parse_usage_line(
+    line: str,
+    *,
+    decimal_comma: bool = False,
+) -> tuple[str, float, str, float] | None:
     amount_match = USAGE_AMOUNT_SUFFIX_RE.search(line)
     if amount_match is None:
         return None
 
     plain_amount = amount_match.group("plain")
+    plain_negative_amount = amount_match.group("plain_negative")
     paren_amount = amount_match.group("paren")
-    amount_raw = plain_amount or paren_amount
+    amount_raw = plain_amount or plain_negative_amount or paren_amount
     if amount_raw is None:
         return None
-    cost = _to_float(amount_raw)
-    if paren_amount is not None:
+    cost = _to_float(amount_raw, decimal_comma=decimal_comma)
+    if paren_amount is not None or plain_negative_amount is not None:
         # In AWS PDF bills, parenthesized USD usually means discount/credit.
         cost = -abs(cost)
 
@@ -219,7 +231,10 @@ def _parse_usage_line(line: str) -> tuple[str, float, str, float] | None:
     if qty_unit_match is None:
         return None
 
-    quantity = _to_float(qty_unit_match.group("qty"))
+    quantity = _to_float(
+        qty_unit_match.group("qty"),
+        decimal_comma=decimal_comma,
+    )
     usage_unit = qty_unit_match.group("unit").strip()
     description = without_amount[: qty_unit_match.start()].strip()
     if not description:
@@ -230,7 +245,11 @@ def _parse_usage_line(line: str) -> tuple[str, float, str, float] | None:
     return description, quantity, usage_unit, cost
 
 
-def _parse_discount_adjustment_line(line: str) -> tuple[str, float] | None:
+def _parse_discount_adjustment_line(
+    line: str,
+    *,
+    decimal_comma: bool = False,
+) -> tuple[str, float] | None:
     match = PAREN_AMOUNT_LINE_RE.match(line)
     if match is None:
         return None
@@ -246,7 +265,12 @@ def _parse_discount_adjustment_line(line: str) -> tuple[str, float] | None:
     if not is_distributor_discount and not is_bundled_discount:
         return None
 
-    amount = -abs(_to_float(match.group("amount")))
+    amount = -abs(
+        _to_float(
+            match.group("amount"),
+            decimal_comma=decimal_comma,
+        )
+    )
     service_name = "Discounts and Credits"
     if is_distributor_discount:
         service_name = "Distributor Discounts"
@@ -262,15 +286,33 @@ def _extract_period(text: str) -> str:
     return f"{match.group(1)}-{match.group(2)}"
 
 
-def _extract_grand_total(text: str) -> float:
+def _extract_grand_total(text: str, *, decimal_comma: bool = False) -> float:
     match = GRAND_TOTAL_RE.search(text)
     if match is None:
         return 0.0
-    return _to_float(match.group("amount"))
+    return _to_float(
+        match.group("amount"),
+        decimal_comma=decimal_comma,
+    )
 
 
-def _to_float(value: str) -> float:
-    return float(str(value).replace(",", "").strip())
+def _uses_decimal_comma(text: str) -> bool:
+    if re.search(r"USD\s+[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}\b", text):
+        return True
+    lowered = text.lower()
+    return "total geral" in lowered or "valor em usd" in lowered
+
+
+def _to_float(value: str, *, decimal_comma: bool = False) -> float:
+    text = str(value).strip().replace(" ", "")
+    if not text:
+        return 0.0
+
+    if decimal_comma:
+        normalized = text.replace(".", "").replace(",", ".")
+    else:
+        normalized = text.replace(",", "")
+    return float(normalized)
 
 
 def _is_region_label(label: str) -> bool:
