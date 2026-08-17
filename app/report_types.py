@@ -21,6 +21,8 @@ class ProcessResult:
     region_summary_df: pd.DataFrame
     oci_mapping_df: pd.DataFrame
     data_quality_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    processor_detail_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    processor_comparison_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     llm_report_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     llm_migration_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     llm_recommendations_df: pd.DataFrame = field(default_factory=pd.DataFrame)

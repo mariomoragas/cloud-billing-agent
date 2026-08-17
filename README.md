@@ -11,6 +11,7 @@ Esqueleto funcional em Python para:
 - gerar um Excel com abas de dados, resumo, graficos e mapeamento OCI
 - gerar um PowerPoint executivo com slides e graficos principais
 - incluir grafico/matriz de complexidade de migracao (top servicos por custo)
+- identificar shapes de compute e estimar ganho de CPU para OCI X9, E5 e E6
 - apontar servicos sem de-para para revisao manual
 - gerar analise FinOps/migracao OCI via Gemini API do Google AI Studio (com fallback local quando API indisponivel)
 
@@ -297,6 +298,7 @@ Slides incluidos:
 - participacao percentual por servico
 - top regioes por custo
 - matriz de complexidade de migracao dos top servicos por custo (score 1-5)
+- performance estimada de CPU para OCI X9, E5 e E6, quando houver shape comparavel
 - mapeamento consolidado AWS -> OCI
 - (quando habilitado) secao LLM FinOps com baseline/projecao/ROI e plano de migracao
 - servicos sem mapeamento OCI
@@ -307,6 +309,8 @@ Slides incluidos:
 - `Resumo_Servicos`
 - `Resumo_Regioes`
 - `Mapeamento_OCI`
+- `Processor_Analysis` (quando shapes de compute forem identificados)
+- `Processor_Comparison` (quando houver benchmark x86 comparavel)
 - `Data_Quality`
 - `LLM_Resumo`
 - `LLM_Migracao`
@@ -320,6 +324,38 @@ Para GCP Cost table, tambem podem ser geradas abas auxiliares:
 - `gcp_project_name`
 - `gcp_sku`
 - `gcp_credit_type`
+
+## Analise de processadores
+
+A aplicacao procura shapes/familias de compute nos campos de SKU e descricao dos parsers AWS, Azure e GCP. As regras ficam em:
+
+- `app/mappings/cloud_shape_processors.csv`: de-para de shape/familia para modelo de processador
+- `app/mappings/processor_benchmarks.csv`: catalogo versionado de CPU Mark, Single Thread, samples, URL e data de consulta
+
+A comparacao usa o `CPU Mark Single Thread` do PassMark. O baseline de origem e ponderado pelo custo positivo das linhas de compute com benchmark valido. O ganho e calculado por:
+
+```text
+ganho_estimado_pct = (score_single_thread_OCI / score_single_thread_origem - 1) * 100
+```
+
+Regras de integridade:
+
+- o resultado e sempre rotulado como estimativa, nao como benchmark da aplicacao
+- shapes ambiguos ficam como `UNRESOLVED` e nao recebem ganho numerico
+- workloads ARM e GPU nao sao convertidos automaticamente para comparacao x86
+- a cobertura de custo e a confianca acompanham o resultado
+- poucos samples no PassMark reduzem a confianca
+- CPU nao representa memoria, NUMA, rede, storage, GPU ou escalabilidade multicore
+
+Os processadores OCI de referencia sao confirmados na documentacao de Compute Shapes: X9 (`Intel Xeon Platinum 8358`), E5 (`AMD EPYC 9J14`) e E6 (`AMD EPYC 9J45`). Os benchmarks devem ser revisados periodicamente porque os valores do PassMark mudam com novos samples.
+
+Fontes:
+
+- https://www.cpubenchmark.net/CPU_mega_page.html
+- https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
+- https://aws.amazon.com/ec2/instance-types/
+- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview
+- https://cloud.google.com/compute/docs/cpu-platforms
 
 ## Analise LLM no PowerPoint
 

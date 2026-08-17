@@ -37,6 +37,8 @@ def write_powerpoint_report(
     service_summary_df: pd.DataFrame,
     region_summary_df: pd.DataFrame,
     oci_mapping_df: pd.DataFrame,
+    processor_detail_df: pd.DataFrame | None = None,
+    processor_comparison_df: pd.DataFrame | None = None,
     llm_report_df: pd.DataFrame | None = None,
     llm_migration_df: pd.DataFrame | None = None,
     llm_recommendations_df: pd.DataFrame | None = None,
@@ -68,6 +70,13 @@ def write_powerpoint_report(
     _add_region_slide(presentation, region_summary_df, slide_number=slide_number)
     slide_number += 1
     _add_migration_complexity_slide(presentation, oci_mapping_df, slide_number=slide_number)
+    slide_number += 1
+    _add_processor_performance_slide(
+        presentation,
+        processor_detail_df=processor_detail_df,
+        processor_comparison_df=processor_comparison_df,
+        slide_number=slide_number,
+    )
     slide_number += 1
     _add_mapping_slide(presentation, oci_mapping_df, slide_number=slide_number)
     slide_number += 1
@@ -464,6 +473,146 @@ def _add_migration_complexity_slide(
     p3 = right.text_frame.add_paragraph()
     p3.text = f"representando {low_cost_share:.0f}% do custo total"
     _style_paragraph(p3, bold=True, size=16, color=_rgb_tuple(COLOR_TEXT))
+
+
+def _add_processor_performance_slide(
+    presentation: Presentation,
+    processor_detail_df: pd.DataFrame | None,
+    processor_comparison_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Performance Estimada de CPU", slide_number)
+    _add_subtitle(
+        slide,
+        "PassMark Single Thread: shapes identificados no billing versus OCI X9, E5 e E6",
+        0.76,
+        1.18,
+        8.7,
+    )
+
+    if processor_comparison_df is None or processor_comparison_df.empty:
+        _add_insight_box(
+            slide,
+            "O billing nao forneceu shape/modelo de CPU com benchmark comparavel. "
+            "Validar inventario de instancias antes de estimar ganho de performance.",
+            0.76,
+            1.75,
+            11.6,
+            2.0,
+            body_size=16,
+        )
+        _add_side_note(
+            slide,
+            "Sem estimativa numerica\nA aplicacao nao substitui ausencia de evidencia por premissas.",
+            0.76,
+            4.05,
+            5.7,
+            1.75,
+            body_size=13,
+        )
+        return
+
+    comparison = processor_comparison_df.copy()
+    source_score = float(comparison.iloc[0]["source_weighted_single_thread_mark"])
+    labels = ["Origem"] + [
+        f"OCI {str(value)}" for value in comparison["target_shape_family"].tolist()
+    ]
+    scores = [source_score] + [
+        float(value) for value in comparison["target_single_thread_mark"].tolist()
+    ]
+
+    chart_data = ChartData()
+    chart_data.categories = labels
+    chart_data.add_series("CPU Mark Single Thread", scores)
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED,
+        Inches(0.76),
+        Inches(1.65),
+        Inches(8.2),
+        Inches(4.7),
+        chart_data,
+    ).chart
+    chart.has_legend = False
+    chart.value_axis.has_major_gridlines = True
+    chart.value_axis.minimum_scale = 0
+    chart.value_axis.maximum_scale = max(scores) * 1.22
+    chart.value_axis.axis_title.text_frame.text = "PassMark Single Thread"
+    chart.category_axis.tick_labels.font.name = FONT_NAME
+    chart.category_axis.tick_labels.font.size = Pt(12)
+    chart.value_axis.tick_labels.font.name = FONT_NAME
+    chart.value_axis.tick_labels.font.size = Pt(12)
+    plot = chart.plots[0]
+    plot.gap_width = 60
+    plot.has_data_labels = True
+    plot.data_labels.show_value = True
+    plot.data_labels.position = XL_DATA_LABEL_POSITION.OUTSIDE_END
+    plot.data_labels.number_format = "0"
+    colors = [RGBColor(139, 133, 128), COLOR_PRIMARY, COLOR_PRIMARY_DARK, RGBColor(94, 40, 32)]
+    for index, point in enumerate(plot.series[0].points):
+        point.format.fill.solid()
+        point.format.fill.fore_color.rgb = colors[min(index, len(colors) - 1)]
+        point.format.line.color.rgb = colors[min(index, len(colors) - 1)]
+    _set_chart_fonts(chart)
+
+    panel = slide.shapes.add_shape(
+        MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+        Inches(9.22),
+        Inches(1.65),
+        Inches(3.35),
+        Inches(4.7),
+    )
+    panel.fill.solid()
+    panel.fill.fore_color.rgb = COLOR_PANEL
+    panel.line.color.rgb = COLOR_BORDER
+    frame = panel.text_frame
+    _configure_text_frame(frame, margin_left=0.14, margin_right=0.14, margin_top=0.12)
+    frame.clear()
+    title = frame.paragraphs[0]
+    title.text = "Ganho estimado"
+    _style_paragraph(title, bold=True, size=16, color=_rgb_tuple(COLOR_PRIMARY_DARK))
+    for _, row in comparison.iterrows():
+        paragraph = frame.add_paragraph()
+        paragraph.text = (
+            f"OCI {row['target_shape_family']}: "
+            f"{float(row['estimated_gain_pct']):+.1f}% "
+            f"({row['confidence']})"
+        )
+        _style_paragraph(paragraph, bold=True, size=14, color=_rgb_tuple(COLOR_TEXT))
+
+    coverage = float(comparison.iloc[0]["source_benchmark_coverage_pct"])
+    coverage_paragraph = frame.add_paragraph()
+    coverage_paragraph.text = f"Cobertura do custo de compute identificado: {coverage:.1f}%"
+    _style_paragraph(coverage_paragraph, bold=False, size=12, color=_rgb_tuple(COLOR_MUTED))
+
+    if processor_detail_df is not None and not processor_detail_df.empty:
+        comparable = processor_detail_df[
+            processor_detail_df["comparison_status"].eq("Comparable single-thread benchmark")
+        ].sort_values("source_cost", ascending=False)
+        shapes = [str(value) for value in comparable["source_shape"].head(3).tolist()]
+        if shapes:
+            shape_paragraph = frame.add_paragraph()
+            shape_paragraph.text = "Shapes principais: " + ", ".join(shapes)
+            _style_paragraph(shape_paragraph, bold=False, size=11, color=_rgb_tuple(COLOR_MUTED))
+
+    caveat = frame.add_paragraph()
+    caveat.text = (
+        "Estimativa single-thread. Nao representa GPU, throughput multicore, memoria, "
+        "NUMA ou performance da aplicacao."
+    )
+    _style_paragraph(caveat, bold=False, size=11, color=_rgb_tuple(COLOR_MUTED))
+
+    source_box = slide.shapes.add_textbox(
+        Inches(0.78), Inches(6.43), Inches(11.7), Inches(0.35)
+    )
+    _configure_text_frame(source_box.text_frame, margin_left=0.01, margin_right=0.01)
+    source = source_box.text_frame.paragraphs[0]
+    source.text = (
+        "Fontes: PassMark CPU Benchmark (consulta registrada no Excel) e OCI Compute Shapes. "
+        "Modelos inferidos por familia; validar no inventario/guest OS."
+    )
+    _style_paragraph(source, bold=False, size=8, color=_rgb_tuple(COLOR_MUTED))
 
 
 def _add_unmapped_slide(

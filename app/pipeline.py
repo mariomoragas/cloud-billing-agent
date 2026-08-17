@@ -18,6 +18,7 @@ from app.oci_mapper import build_oci_mapping, load_mapping_table
 from app.parsers.aws_invoice import load_aws_invoice_csv
 from app.parsers.azure_cost_csv import load_azure_cost_csv
 from app.parsers.gcp_cost_table import load_gcp_cost_table_csv
+from app.processor_analysis import build_processor_analysis
 from app.report_types import ProcessResult
 
 
@@ -89,6 +90,7 @@ def process_billing_file(
                 top_n=20,
             ),
         }
+    processor_artifacts = build_processor_analysis(raw_df)
     llm_artifacts = build_llm_report_artifacts(
         raw_df=raw_df,
         service_summary_df=service_summary_df,
@@ -104,6 +106,8 @@ def process_billing_file(
         service_summary_df=service_summary_df,
         region_summary_df=region_summary_df,
         oci_mapping_df=oci_mapping_df,
+        processor_detail_df=processor_artifacts.detail_df,
+        processor_comparison_df=processor_artifacts.comparison_df,
         extra_summaries=extra_summaries,
         data_quality_df=data_quality_df,
         llm_report_df=llm_artifacts.summary_df,
@@ -120,6 +124,8 @@ def process_billing_file(
             service_summary_df=service_summary_df,
             region_summary_df=region_summary_df,
             oci_mapping_df=oci_mapping_df,
+            processor_detail_df=processor_artifacts.detail_df,
+            processor_comparison_df=processor_artifacts.comparison_df,
             llm_report_df=llm_artifacts.summary_df,
             llm_migration_df=llm_artifacts.migration_df,
             llm_recommendations_df=llm_artifacts.recommendations_df,
@@ -136,6 +142,8 @@ def process_billing_file(
         region_summary_df=region_summary_df,
         oci_mapping_df=oci_mapping_df,
         data_quality_df=data_quality_df,
+        processor_detail_df=processor_artifacts.detail_df,
+        processor_comparison_df=processor_artifacts.comparison_df,
         llm_report_df=llm_artifacts.summary_df,
         llm_migration_df=llm_artifacts.migration_df,
         llm_recommendations_df=llm_artifacts.recommendations_df,

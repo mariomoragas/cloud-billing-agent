@@ -28,6 +28,8 @@ def write_billing_report(
     service_summary_df: pd.DataFrame,
     region_summary_df: pd.DataFrame,
     oci_mapping_df: pd.DataFrame,
+    processor_detail_df: pd.DataFrame | None = None,
+    processor_comparison_df: pd.DataFrame | None = None,
     extra_summaries: dict[str, pd.DataFrame] | None = None,
     data_quality_df: pd.DataFrame | None = None,
     llm_report_df: pd.DataFrame | None = None,
@@ -42,6 +44,12 @@ def write_billing_report(
         service_summary_df.to_excel(writer, sheet_name="Resumo_Servicos", index=False)
         region_summary_df.to_excel(writer, sheet_name="Resumo_Regioes", index=False)
         oci_mapping_df.to_excel(writer, sheet_name="Mapeamento_OCI", index=False)
+        if processor_detail_df is not None and not processor_detail_df.empty:
+            processor_detail_df.to_excel(writer, sheet_name="Processor_Analysis", index=False)
+        if processor_comparison_df is not None and not processor_comparison_df.empty:
+            processor_comparison_df.to_excel(
+                writer, sheet_name="Processor_Comparison", index=False
+            )
         if data_quality_df is not None and not data_quality_df.empty:
             data_quality_df.to_excel(writer, sheet_name="Data_Quality", index=False)
         if llm_report_df is not None and not llm_report_df.empty:
@@ -115,6 +123,7 @@ def _create_charts_sheet(workbook) -> None:
     _add_service_cost_share_chart(workbook, charts_sheet)
     _add_region_cost_chart(workbook, charts_sheet)
     _add_migration_complexity_chart(workbook, charts_sheet)
+    _add_processor_performance_chart(workbook, charts_sheet)
     _add_optional_chart(
         workbook,
         charts_sheet,
@@ -409,6 +418,67 @@ def _add_migration_complexity_chart(workbook, charts_sheet) -> None:
     series = Series(yvalues, xvalues, title_from_data=False)
     scatter.series.append(series)
     charts_sheet.add_chart(scatter, "J69")
+
+
+def _add_processor_performance_chart(workbook, charts_sheet) -> None:
+    if "Processor_Comparison" not in workbook.sheetnames:
+        return
+
+    source = workbook["Processor_Comparison"]
+    if source.max_row < 2:
+        return
+
+    headers = {
+        str(source.cell(row=1, column=col).value or ""): col
+        for col in range(1, source.max_column + 1)
+    }
+    required = {
+        "target_shape_family",
+        "target_single_thread_mark",
+        "source_weighted_single_thread_mark",
+    }
+    if not required.issubset(headers):
+        return
+
+    title = "Chart_CPU_Performance"
+    if title in workbook.sheetnames:
+        del workbook[title]
+    data_sheet = workbook.create_sheet(title)
+    data_sheet.sheet_state = "hidden"
+    data_sheet.append(["Plataforma", "CPU Mark Single Thread"])
+    source_score = source.cell(
+        row=2, column=headers["source_weighted_single_thread_mark"]
+    ).value
+    if not isinstance(source_score, (int, float)) or source_score <= 0:
+        return
+    data_sheet.append(["Origem (ponderada)", float(source_score)])
+    for row in range(2, source.max_row + 1):
+        family = str(
+            source.cell(row=row, column=headers["target_shape_family"]).value or ""
+        ).strip()
+        score = source.cell(row=row, column=headers["target_single_thread_mark"]).value
+        if family and isinstance(score, (int, float)):
+            data_sheet.append([f"OCI {family}", float(score)])
+
+    chart = BarChart()
+    chart.type = "col"
+    chart.style = 10
+    chart.title = "Performance estimada de CPU"
+    chart.y_axis.title = "PassMark Single Thread"
+    chart.x_axis.title = "Shape / plataforma"
+    chart.height = 9.5
+    chart.width = 17.5
+    chart.legend = None
+    chart.varyColors = True
+    chart.gapWidth = 55
+    max_row = data_sheet.max_row
+    data = Reference(data_sheet, min_col=2, min_row=1, max_row=max_row)
+    categories = Reference(data_sheet, min_col=1, min_row=2, max_row=max_row)
+    chart.add_data(data, titles_from_data=True)
+    chart.set_categories(categories)
+    chart.dataLabels = DataLabelList()
+    chart.dataLabels.showVal = True
+    charts_sheet.add_chart(chart, "A91")
 
 
 def _create_ranked_sheet(

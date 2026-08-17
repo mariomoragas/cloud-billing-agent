@@ -1,0 +1,15 @@
+platform,shape_family,processor_model,architecture,cpu_mark,single_thread_mark,physical_cores,cpu_count,samples,benchmark_date,retrieved_at,benchmark_url,benchmark_source
+oci,X9,Intel Xeon Platinum 8358 @ 2.60GHz,x86_64,54416,2382,32,1,2,Aug 2021,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=Intel+Xeon+Platinum+8358+%40+2.60GHz&id=4493,PassMark CPU Benchmark
+oci,E5,AMD EPYC 9J14,x86_64,124637,2903,96,1,1,Jul 2023,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+9J14&id=5589,PassMark CPU Benchmark
+oci,E6,AMD EPYC 9J45,x86_64,201335,3488,128,2,1,Apr 2025,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+9J45&id=6662,PassMark CPU Benchmark
+source,,Intel Xeon Platinum 8375C @ 2.90GHz,x86_64,56202,2474,32,1,6,Aug 2021,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=Intel+Xeon+Platinum+8375C+%40+2.90GHz&id=4486,PassMark CPU Benchmark
+source,,AMD EPYC 7R13,x86_64,79420,2606,48,1,12,Dec 2021,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+7R13&id=4634,PassMark CPU Benchmark
+source,,AMD EPYC 9R14,x86_64,116475,2920,96,1,2,Aug 2023,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+9R14&id=5635,PassMark CPU Benchmark
+source,,AMD EPYC 7571,x86_64,28574,1855,32,1,2,Sep 2019,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+7571&id=3543,PassMark CPU Benchmark
+source,,Intel Xeon Platinum 8259CL @ 2.50GHz,x86_64,31403,1948,24,1,13,Feb 2020,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=Intel+Xeon+Platinum+8259CL+%40+2.50GHz&id=3671,PassMark CPU Benchmark
+source,,Intel Xeon Platinum 8175M @ 2.50GHz,x86_64,25897,1546,24,1,4,Aug 2018,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=Intel+Xeon+Platinum+8175M+%40+2.50GHz&id=3311,PassMark CPU Benchmark
+source,,Intel Xeon E5-2686 v4 @ 2.30GHz,x86_64,19528,1795,18,1,117,Oct 2016,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=Intel+Xeon+E5-2686+v4+%40+2.30GHz&id=2870,PassMark CPU Benchmark
+source,,AMD EPYC 7763,x86_64,84492,2517,64,1,61,Mar 2021,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+7763&id=4207,PassMark CPU Benchmark
+source,,Intel Xeon Gold 6268CL @ 2.80GHz,x86_64,34558,2278,24,1,3,Jul 2023,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=Intel+Xeon+Gold+6268CL+%40+2.80GHz&id=5609,PassMark CPU Benchmark
+source,,AMD EPYC 7B12,x86_64,66044,1927,64,1,4,Jun 2021,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+7B12&id=4398,PassMark CPU Benchmark
+source,,AMD EPYC 7B13,x86_64,80293,2554,64,1,29,Sep 2021,2026-08-17,https://www.cpubenchmark.net/cpu.php?cpu=AMD+EPYC+7B13&id=4535,PassMark CPU Benchmark

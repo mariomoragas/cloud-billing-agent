@@ -1,0 +1,20 @@
+priority,cloud,shape_family,shape_pattern,processor_model,architecture,mapping_confidence,source_url,notes
+10,aws,M6i/C6i/R6i,"\b(?:m6i|c6i|r6i|m6id|c6id|r6id)(?:n|e)?\.[a-z0-9]+\b",Intel Xeon Platinum 8375C @ 2.90GHz,x86_64,0.95,https://aws.amazon.com/ec2/instance-types/,3rd Gen Intel Xeon Ice Lake family
+20,aws,M6a/C6a/R6a,"\b(?:m6a|c6a|r6a)\.[a-z0-9]+\b",AMD EPYC 7R13,x86_64,0.95,https://aws.amazon.com/ec2/instance-types/,3rd Gen AMD EPYC family
+30,aws,M7a/C7a/R7a,"\b(?:m7a|c7a|r7a)\.[a-z0-9]+\b",AMD EPYC 9R14,x86_64,0.95,https://aws.amazon.com/ec2/instance-types/,4th Gen AMD EPYC family
+40,aws,T3a/M5a/C5a/R5a,"\b(?:t3a|m5a|c5a|r5a)\.[a-z0-9]+\b",AMD EPYC 7571,x86_64,0.70,https://aws.amazon.com/ec2/instance-types/,Representative first-generation AMD EPYC model; verify host CPU
+50,aws,T3,"\bt3\.[a-z0-9]+\b",Intel Xeon Platinum 8259CL @ 2.50GHz,x86_64,0.55,https://aws.amazon.com/ec2/instance-types/t3/,Representative model; T3 hardware can vary by region and availability zone
+60,aws,M5/C5/R5,"\b(?:m5|c5|r5)(?:d|n)?\.[a-z0-9]+\b",Intel Xeon Platinum 8175M @ 2.50GHz,x86_64,0.55,https://aws.amazon.com/ec2/instance-types/,Representative model; host CPU can vary
+70,aws,I3,"\bi3\.[a-z0-9]+\b",Intel Xeon E5-2686 v4 @ 2.30GHz,x86_64,0.90,https://aws.amazon.com/ec2/instance-types/i3/,Intel Xeon E5 generation
+80,aws,Graviton2,"\b(?:a1|c6g(?:d|n)?|m6g(?:d)?|r6g(?:d)?|t4g|x2gd)\.[a-z0-9]+\b",AWS Graviton2,arm64,0.90,https://aws.amazon.com/ec2/graviton/,Arm processor; no directly comparable PassMark record in catalog
+90,aws,Graviton3,"\b(?:c7g(?:d|n)?|m7g(?:d)?|r7g(?:d)?)\.[a-z0-9]+\b",AWS Graviton3,arm64,0.90,https://aws.amazon.com/ec2/graviton/,Arm processor; no directly comparable PassMark record in catalog
+100,aws,Graviton4,"\b(?:c8g(?:d|n)?|m8g(?:d)?|r8g(?:d)?)\.[a-z0-9]+\b",AWS Graviton4,arm64,0.90,https://aws.amazon.com/ec2/graviton/,Arm processor; no directly comparable PassMark record in catalog
+110,aws,GPU,"\b(?:g4dn|g5|g6|g6e|p3|p4|p5)\.[a-z0-9]+\b",GPU host CPU not compared,mixed,0.90,https://aws.amazon.com/ec2/instance-types/accelerated-computing/,GPU workload; CPU-only estimate is not representative
+200,azure,Dasv5/Easv5,"\b(?:standard[_ -])?(?:d|e)[a-z0-9]*as[_ -]?v5\b",AMD EPYC 7763,x86_64,0.90,https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview,AMD Milan-based Azure v5 family
+210,azure,Dsv5/Esv5,"\b(?:standard[_ -])?(?:d|e)[a-z0-9]*s[_ -]?v5\b",Intel Xeon Platinum 8370C,x86_64,0.90,https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview,Exact processor family identified but no PassMark record in catalog
+300,gcp,T2D,"\bt2d(?:[- _]|\b)",AMD EPYC 7B13,x86_64,0.80,https://cloud.google.com/compute/docs/cpu-platforms,Representative AMD Milan processor for T2D
+310,gcp,N2D Milan,"\bn2d\b.*\bmilan\b|\bmilan\b.*\bn2d\b",AMD EPYC 7B13,x86_64,0.80,https://cloud.google.com/compute/docs/cpu-platforms,Representative AMD Milan processor
+320,gcp,N2D Rome,"\bn2d\b.*\brome\b|\brome\b.*\bn2d\b",AMD EPYC 7B12,x86_64,0.80,https://cloud.google.com/compute/docs/cpu-platforms,Representative AMD Rome processor
+330,gcp,C2,"\bc2(?:[- _]|\b)",Intel Xeon Gold 6268CL @ 2.80GHz,x86_64,0.75,https://cloud.google.com/compute/docs/cpu-platforms,Representative Cascade Lake model; verify guest CPU
+340,gcp,N2D,"\bn2d(?:[- _]|\b)",UNRESOLVED,x86_64,0.40,https://cloud.google.com/compute/docs/cpu-platforms,CPU generation not present in billing text
+350,gcp,N2/E2/C3,"\b(?:n2|e2|c3)(?:[- _]|\b)",UNRESOLVED,x86_64,0.35,https://cloud.google.com/compute/docs/cpu-platforms,Machine family alone does not uniquely identify CPU model
