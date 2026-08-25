@@ -144,7 +144,7 @@ Exemplo com Azure Cost CSV:
   --format azure-cost-csv `
   --cloud azure `
   --output .\output\billing_report_azure_cost.xlsx `
-  --company-name "Maida Health" `
+  --company-name "xxx" `
   --project-name "Azure to OCI Assessment"
 ```
 
