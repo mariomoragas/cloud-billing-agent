@@ -1,0 +1,40 @@
+cloud,shape,vcpu,memory_gb,architecture,gpu_model,gpu_count,target_profile,confidence,source_url
+aws,g6e.xlarge,4,32,x86_64,NVIDIA L40S,1,gpu_l40s,High,https://aws.amazon.com/ec2/instance-types/g6e/
+aws,g4dn.xlarge,4,16,x86_64,NVIDIA T4,1,gpu_a10,Low,https://aws.amazon.com/ec2/instance-types/g4/
+aws,g4dn.2xlarge,8,32,x86_64,NVIDIA T4,1,gpu_a10,Low,https://aws.amazon.com/ec2/instance-types/g4/
+aws,r6g.2xlarge,8,64,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/r6g/
+aws,c6a.2xlarge,8,16,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/c6a/
+aws,c6a.4xlarge,16,32,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/c6a/
+aws,c6g.xlarge,4,8,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/c6g/
+aws,c6g.2xlarge,8,16,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/c6g/
+aws,c6g.8xlarge,32,64,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/c6g/
+aws,c6gn.medium,1,2,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/c6g/
+aws,m8g.medium,1,4,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/m8g/
+aws,m8g.large,2,8,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/m8g/
+aws,m8g.xlarge,4,16,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/m8g/
+aws,m7g.large,2,8,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/m7g/
+aws,m6g.medium,1,4,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/m6g/
+aws,m6g.large,2,8,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/m6g/
+aws,t4g.nano,2,0.5,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/t4/
+aws,t4g.small,2,2,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/t4/
+aws,t4g.large,2,8,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/t4/
+aws,t4g.xlarge,4,16,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/t4/
+aws,t4g.2xlarge,8,32,arm64,,0,compute_a1,High,https://aws.amazon.com/ec2/instance-types/t4/
+aws,t2.micro,1,1,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/previous-generation/
+aws,t2.small,1,2,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/previous-generation/
+aws,t2.medium,2,4,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/previous-generation/
+aws,t3.nano,2,0.5,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3.micro,2,1,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3.small,2,2,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3.medium,2,4,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3.large,2,8,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3a.nano,2,0.5,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3a.micro,2,1,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3a.small,2,2,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3a.medium,2,4,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,t3a.large,2,8,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/t3/
+aws,m6i.large,2,8,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/m6i/
+aws,m6i.xlarge,4,16,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/m6i/
+aws,m6id.large,2,8,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/m6i/
+aws,m6id.xlarge,4,16,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/m6i/
+aws,i3.2xlarge,8,61,x86_64,,0,compute_e5,High,https://aws.amazon.com/ec2/instance-types/i3/

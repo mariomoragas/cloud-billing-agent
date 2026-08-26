@@ -12,6 +12,7 @@ Esqueleto funcional em Python para:
 - gerar um PowerPoint executivo com slides e graficos principais
 - incluir grafico/matriz de complexidade de migracao (top servicos por custo)
 - identificar shapes de compute e estimar ganho de CPU para OCI X9, E5 e E6
+- gerar uma BoM OCI com part numbers e quantidades tecnicas equivalentes quando o billing tiver granularidade suficiente
 - apontar servicos sem de-para para revisao manual
 - gerar analise FinOps/migracao OCI via Gemini API do Google AI Studio (com fallback local quando API indisponivel)
 
@@ -299,6 +300,7 @@ Slides incluidos:
 - top regioes por custo
 - matriz de complexidade de migracao dos top servicos por custo (score 1-5)
 - performance estimada de CPU para OCI X9, E5 e E6, quando houver shape comparavel
+- dimensionamento e part numbers OCI, com quantidades, confianca e premissas
 - mapeamento consolidado AWS -> OCI
 - (quando habilitado) secao LLM FinOps com baseline/projecao/ROI e plano de migracao
 - servicos sem mapeamento OCI
@@ -311,6 +313,9 @@ Slides incluidos:
 - `Mapeamento_OCI`
 - `Processor_Analysis` (quando shapes de compute forem identificados)
 - `Processor_Comparison` (quando houver benchmark x86 comparavel)
+- `OCI_BoM` (part numbers OCI e quantidades consolidadas)
+- `OCI_BoM_Review` (linhas que exigem dimensionamento ou validacao manual)
+- `OCI_BoM_Summary` (cenario, cobertura e versao do catalogo)
 - `Data_Quality`
 - `LLM_Resumo`
 - `LLM_Migracao`
@@ -357,6 +362,36 @@ Fontes:
 - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview
 - https://cloud.google.com/compute/docs/cpu-platforms
 
+## Dimensionamento e part numbers OCI
+
+A aplicacao gera uma Bill of Materials tecnica quando o billing possui metricas auditaveis de consumo. A primeira versao detalhada cobre AWS Invoice CSV e utiliza:
+
+- horas e capacidade dos shapes EC2 para OCPU-hora, GB-hora e GPU-hora
+- EBS gp2/gp3 para Block Volume em GB-mes e VPU-GB-mes
+- S3 Standard/Glacier e requisicoes para Object Storage/Archive Storage
+- EFS para File Storage
+- trafego de saida em GB e horas de Load Balancer
+
+Regras de integridade:
+
+- a BoM representa o cenario `Capacity equivalent`; nao aplica rightsizing por utilizacao
+- para x86, 1 OCPU OCI equivale a 2 vCPUs de origem; para Arm/Ampere A1, 1 OCPU equivale a 1 vCPU de origem
+- cobrancas de reserva, Savings Plans e `HeavyUsage` nao viram capacidade para evitar dupla contagem
+- a aplicacao nao aplica preco OCI automaticamente e nao mistura quantidade tecnica com projecao financeira
+- servicos gerenciados, tiers proprietarios e linhas sem metrica suficiente ficam em `OCI_BoM_Review`
+- cada linha inclui confianca, premissa, origem do consumo e versao do catalogo OCI
+
+Catalogos versionados:
+
+- `app/mappings/oci_sku_catalog.csv`: part number, nome, unidade e categoria OCI
+- `app/mappings/cloud_shape_capacity.csv`: vCPU, memoria, arquitetura e GPU dos shapes de origem suportados
+
+A fonte dos part numbers e a API publica do OCI Price List. O snapshot incluido nesta versao informa atualizacao em `2026-08-14T09:09:55.872Z`:
+
+- https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+- https://www.oracle.com/cloud/price-list/
+
+Azure e GCP continuam gerando a fila de revisao quando o export nao fornece uma regra quantitativa auditavel. Novos shapes e servicos devem ser adicionados aos catalogos somente com especificacoes verificadas.
 ## Analise LLM no PowerPoint
 
 Quando habilitada, o deck inclui slides adicionais com:

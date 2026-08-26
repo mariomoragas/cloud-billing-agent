@@ -1,0 +1,16 @@
+part_number,display_name,metric_name,service_category,target_profile,catalog_last_updated,catalog_url
+B97384,Compute - Standard - E5 - OCPU,OCPU Per Hour,Compute,compute_e5_ocpu,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B97385,Compute - Standard - E5 - Memory,Gigabytes Per Hour,Compute,compute_e5_memory,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93297,Compute - Standard - A1 - OCPU,OCPU Per Hour,Compute,compute_a1_ocpu,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93298,Compute - Standard - A1 - Memory,Gigabytes Per Hour,Compute,compute_a1_memory,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B109479,Compute - GPU - L40S,GPU Per Hour,Compute,gpu_l40s,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B95909,Compute - GPU - A10,GPU Per Hour,Compute,gpu_a10,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91961,Storage - Block Volume - Storage,Gigabyte Storage Capacity Per Month,Storage,block_storage,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91962,Storage - Block Volume - Performance Units,Performance Units Per Gigabyte Per Month,Storage,block_vpu,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91628,Object Storage - Storage,Gigabyte Storage Capacity Per Month,Storage,object_standard,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91627,Object Storage - Requests,"10,000 Requests per Month (first 50,000 free)",Storage,object_requests,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91633,Archive Storage - Storage,Gigabyte Storage Capacity Per Month,Storage,object_archive,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B89057,File Storage - Storage,Gigabyte Storage Capacity Per Month,Storage,file_storage,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93030,Load Balancer Base,Load Balancer,Networking,load_balancer_base,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93455,Outbound Data Transfer - Originating in APAC Japan and South America,Gigabytes,Networking,egress_apac_south_america,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B88327,Outbound Data Transfer - Originating in North America Europe and UK,Gigabytes,Networking,egress_na_europe,2026-08-14T09:09:55.872Z,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD

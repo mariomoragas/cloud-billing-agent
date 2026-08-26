@@ -39,6 +39,9 @@ def write_powerpoint_report(
     oci_mapping_df: pd.DataFrame,
     processor_detail_df: pd.DataFrame | None = None,
     processor_comparison_df: pd.DataFrame | None = None,
+    oci_bom_df: pd.DataFrame | None = None,
+    oci_bom_review_df: pd.DataFrame | None = None,
+    oci_bom_summary_df: pd.DataFrame | None = None,
     llm_report_df: pd.DataFrame | None = None,
     llm_migration_df: pd.DataFrame | None = None,
     llm_recommendations_df: pd.DataFrame | None = None,
@@ -75,6 +78,12 @@ def write_powerpoint_report(
         presentation,
         processor_detail_df=processor_detail_df,
         processor_comparison_df=processor_comparison_df,
+        slide_number=slide_number,
+    )
+    slide_number += 1
+    _add_oci_bom_slide(
+        presentation,
+        oci_bom_df=oci_bom_df,
         slide_number=slide_number,
     )
     slide_number += 1
@@ -657,6 +666,127 @@ def _add_unmapped_slide(
         cost = float(row["total_cost"]) if "total_cost" in row else 0.0
         paragraph.text = f"{row['service_name_original']} | {cost:,.2f} {row.get('primary_currency', 'USD')}"
         _style_paragraph(paragraph, bold=False, size=14, color=_rgb_tuple(COLOR_TEXT))
+
+
+def _add_oci_bom_slide(
+    presentation: Presentation,
+    *,
+    oci_bom_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "OCI Part Numbers", slide_number)
+
+    bom = oci_bom_df.copy() if oci_bom_df is not None else pd.DataFrame()
+    if bom.empty:
+        _add_bom_text(
+            slide,
+            "No OCI SKUs could be generated from the available billing data.",
+            0.82,
+            1.85,
+            10.8,
+            0.5,
+            size=13,
+            color=COLOR_MUTED,
+        )
+        return
+
+    bom["quantity"] = pd.to_numeric(bom["quantity"], errors="coerce").fillna(0.0)
+    bom["source_cost"] = pd.to_numeric(bom["source_cost"], errors="coerce").fillna(0.0)
+    sku_list = (
+        bom.groupby(["oci_part_number", "oci_sku", "unit"], as_index=False)
+        .agg(quantity=("quantity", "sum"), source_cost=("source_cost", "sum"))
+        .sort_values(["source_cost", "quantity"], ascending=False)
+    )
+
+    columns = [
+        ("Part number", 0.82, 1.45),
+        ("OCI SKU", 2.35, 5.25),
+        ("Quantity", 7.75, 4.15),
+    ]
+    for label, left, width in columns:
+        _add_bom_text(
+            slide,
+            label,
+            left,
+            1.45,
+            width,
+            0.32,
+            bold=True,
+            size=11,
+            color=COLOR_PRIMARY_DARK,
+        )
+
+    sku_count = len(sku_list)
+    row_step = min(0.43, 4.72 / max(sku_count, 1))
+    if sku_count <= 10:
+        font_size = 11
+    elif sku_count <= 14:
+        font_size = 10
+    elif sku_count <= 18:
+        font_size = 9
+    elif sku_count <= 24:
+        font_size = 8
+    else:
+        font_size = 7
+    row_height = max(0.16, min(0.38, row_step * 0.9))
+
+    row_y = 1.90
+    for _, row in sku_list.iterrows():
+        sku = str(row.get("oci_sku", ""))
+        max_sku_length = 48 if font_size >= 9 else 58
+        if len(sku) > max_sku_length:
+            sku = sku[: max_sku_length - 3].rstrip() + "..."
+        quantity = float(row.get("quantity", 0.0))
+        unit = str(row.get("unit", ""))
+        _add_bom_text(
+            slide,
+            str(row.get("oci_part_number", "")),
+            0.82,
+            row_y,
+            1.45,
+            row_height,
+            bold=True,
+            size=font_size,
+        )
+        _add_bom_text(
+            slide,
+            sku,
+            2.35,
+            row_y,
+            5.25,
+            row_height,
+            size=font_size,
+        )
+        _add_bom_text(
+            slide,
+            f"{quantity:,.2f} {unit}",
+            7.75,
+            row_y,
+            4.15,
+            row_height,
+            size=font_size,
+        )
+        row_y += row_step
+
+def _add_bom_text(
+    slide,
+    text: str,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    *,
+    bold: bool = False,
+    size: int = 9,
+    color: RGBColor = COLOR_TEXT,
+) -> None:
+    box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+    _configure_text_frame(box.text_frame, margin_left=0.01, margin_right=0.01)
+    paragraph = box.text_frame.paragraphs[0]
+    paragraph.text = text
+    _style_paragraph(paragraph, bold=bold, size=size, color=_rgb_tuple(color))
 
 
 def _add_mapping_slide(

@@ -30,6 +30,9 @@ def write_billing_report(
     oci_mapping_df: pd.DataFrame,
     processor_detail_df: pd.DataFrame | None = None,
     processor_comparison_df: pd.DataFrame | None = None,
+    oci_bom_df: pd.DataFrame | None = None,
+    oci_bom_review_df: pd.DataFrame | None = None,
+    oci_bom_summary_df: pd.DataFrame | None = None,
     extra_summaries: dict[str, pd.DataFrame] | None = None,
     data_quality_df: pd.DataFrame | None = None,
     llm_report_df: pd.DataFrame | None = None,
@@ -50,6 +53,12 @@ def write_billing_report(
             processor_comparison_df.to_excel(
                 writer, sheet_name="Processor_Comparison", index=False
             )
+        if oci_bom_df is not None and not oci_bom_df.empty:
+            oci_bom_df.to_excel(writer, sheet_name="OCI_BoM", index=False)
+        if oci_bom_review_df is not None and not oci_bom_review_df.empty:
+            oci_bom_review_df.to_excel(writer, sheet_name="OCI_BoM_Review", index=False)
+        if oci_bom_summary_df is not None and not oci_bom_summary_df.empty:
+            oci_bom_summary_df.to_excel(writer, sheet_name="OCI_BoM_Summary", index=False)
         if data_quality_df is not None and not data_quality_df.empty:
             data_quality_df.to_excel(writer, sheet_name="Data_Quality", index=False)
         if llm_report_df is not None and not llm_report_df.empty:

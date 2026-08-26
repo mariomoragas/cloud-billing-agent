@@ -14,6 +14,7 @@ from app.excel_writer import write_billing_report
 from app.input_validation import validate_billing_input_file
 from app.llm_report import build_llm_report_artifacts
 from app.normalizer import load_and_normalize_csv
+from app.oci_bom import build_oci_bom
 from app.oci_mapper import build_oci_mapping, load_mapping_table
 from app.parsers.aws_invoice import load_aws_invoice_csv
 from app.parsers.azure_cost_csv import load_azure_cost_csv
@@ -33,7 +34,7 @@ def process_billing_file(
     company_name: str = "",
     project_name: str = "",
     llm_model: str = "gemini-2.5-flash",
-) -> Path:
+) -> ProcessResult:
     data_quality_df = pd.DataFrame()
     validate_billing_input_file(input_path, file_format)
 
@@ -91,6 +92,7 @@ def process_billing_file(
             ),
         }
     processor_artifacts = build_processor_analysis(raw_df)
+    oci_bom_artifacts = build_oci_bom(raw_df)
     llm_artifacts = build_llm_report_artifacts(
         raw_df=raw_df,
         service_summary_df=service_summary_df,
@@ -108,6 +110,9 @@ def process_billing_file(
         oci_mapping_df=oci_mapping_df,
         processor_detail_df=processor_artifacts.detail_df,
         processor_comparison_df=processor_artifacts.comparison_df,
+        oci_bom_df=oci_bom_artifacts.bom_df,
+        oci_bom_review_df=oci_bom_artifacts.review_df,
+        oci_bom_summary_df=oci_bom_artifacts.summary_df,
         extra_summaries=extra_summaries,
         data_quality_df=data_quality_df,
         llm_report_df=llm_artifacts.summary_df,
@@ -126,6 +131,10 @@ def process_billing_file(
             oci_mapping_df=oci_mapping_df,
             processor_detail_df=processor_artifacts.detail_df,
             processor_comparison_df=processor_artifacts.comparison_df,
+            oci_bom_df=oci_bom_artifacts.bom_df,
+            oci_bom_review_df=oci_bom_artifacts.review_df,
+            oci_bom_summary_df=oci_bom_artifacts.summary_df,
+
             llm_report_df=llm_artifacts.summary_df,
             llm_migration_df=llm_artifacts.migration_df,
             llm_recommendations_df=llm_artifacts.recommendations_df,
@@ -144,6 +153,9 @@ def process_billing_file(
         data_quality_df=data_quality_df,
         processor_detail_df=processor_artifacts.detail_df,
         processor_comparison_df=processor_artifacts.comparison_df,
+        oci_bom_df=oci_bom_artifacts.bom_df,
+        oci_bom_review_df=oci_bom_artifacts.review_df,
+        oci_bom_summary_df=oci_bom_artifacts.summary_df,
         llm_report_df=llm_artifacts.summary_df,
         llm_migration_df=llm_artifacts.migration_df,
         llm_recommendations_df=llm_artifacts.recommendations_df,

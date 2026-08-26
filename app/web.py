@@ -13,6 +13,8 @@ from typing import Iterable
 from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 
+import pandas as pd
+
 from app.config import load_local_config
 from app.pipeline import process_billing_file
 from app.static import guess_content_type, resolve_font_asset
@@ -307,12 +309,37 @@ def _build_preview_context(result) -> dict[str, object]:
     for _, row in unmapped_df.head(10).iterrows():
         unmapped_services.append(str(row["service_name_original"]))
 
+    oci_bom = []
+    if not result.oci_bom_df.empty:
+        visible_bom = result.oci_bom_df.copy()
+        visible_bom["_sort_cost"] = pd.to_numeric(
+            visible_bom["source_cost"], errors="coerce"
+        ).fillna(0.0).abs()
+        visible_bom = visible_bom.sort_values(
+            ["_sort_cost", "quantity"], ascending=False
+        ).head(5)
+        for _, row in visible_bom.iterrows():
+            oci_bom.append(
+                {
+                    "part_number": str(row.get("oci_part_number", "")),
+                    "sku": str(row.get("oci_sku", "")),
+                    "quantity": float(row.get("quantity", 0.0)),
+                    "unit": str(row.get("unit", "")),
+                    "confidence": str(row.get("confidence", "")),
+                }
+            )
+
     return {
         "currency": currency,
         "total_cost": total_cost,
         "top_services": top_services,
         "unmapped_services": unmapped_services,
         "raw_rows": len(result.raw_df),
+        "oci_bom": oci_bom,
+        "oci_part_numbers": int(result.oci_bom_df["oci_part_number"].nunique())
+        if not result.oci_bom_df.empty
+        else 0,
+        "oci_bom_review_count": len(result.oci_bom_review_df),
     }
 
 
@@ -686,6 +713,17 @@ def _render_result(
     if not unmapped_markup:
         unmapped_markup = "<li>Todos os servicos desta amostra possuem mapeamento inicial.</li>"
 
+    oci_bom_markup = "".join(
+        (
+            f"<li><strong>{html.escape(item['part_number'])}</strong> - "
+            f"{html.escape(item['sku'])}: {item['quantity']:,.2f} "
+            f"{html.escape(item['unit'])} ({html.escape(item['confidence'])})</li>"
+        )
+        for item in preview["oci_bom"]
+    )
+    if not oci_bom_markup:
+        oci_bom_markup = "<li>O billing nao possui granularidade suficiente para gerar quantidades OCI automaticas.</li>"
+
     return f"""
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -752,7 +790,7 @@ def _render_result(
     h1, h2 {{ margin-top: 0; }}
     .preview-grid {{
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 14px;
       margin-top: 18px;
     }}
@@ -843,6 +881,10 @@ def _render_result(
           Servicos nao mapeados
           <strong>{len(preview["unmapped_services"])}</strong>
         </div>
+        <div class="stat">
+          Part numbers OCI
+          <strong>{preview["oci_part_numbers"]}</strong>
+        </div>
       </div>
 
       <div class="actions">
@@ -865,6 +907,13 @@ def _render_result(
         <h2>Servicos sem mapeamento OCI</h2>
         <ul>{unmapped_markup}</ul>
       </div>
+    </section>
+
+    <section class="panel">
+      <h2>Dimensionamento OCI preliminar</h2>
+      <p>Top part numbers por custo de origem. Cenario de capacidade equivalente, sem precos OCI e sem rightsizing por utilizacao.</p>
+      <ul>{oci_bom_markup}</ul>
+      <p><strong>{preview["oci_bom_review_count"]}</strong> grupos permanecem na fila de validacao manual.</p>
     </section>
   </main>
   <script>
