@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import math
+from uuid import uuid4
 
 import pandas as pd
+from lxml import etree
 from pptx import Presentation
+from pptx.oxml.ns import qn
 from pptx.chart.data import ChartData
 from pptx.dml.color import RGBColor
 from pptx.enum.chart import (
@@ -21,8 +25,10 @@ FONT_NAME = "Verdana"
 TITLE_FONT = "Georgia"
 APP_ROOT = Path(__file__).resolve().parent
 PPT_TEMPLATE_DIR = APP_ROOT / "assets" / "ppt_template"
-ASSET_ORACLE_LOGO = PPT_TEMPLATE_DIR / "oracle_logo.png"
-ASSET_COVER_BG = PPT_TEMPLATE_DIR / "cover_bg.png"
+DEFAULT_PPT_TEMPLATE = PPT_TEMPLATE_DIR / "source_template.pptx"
+PPT_TEMPLATE_ENV_VAR = "PPT_TEMPLATE_PATH"
+P14_NAMESPACE = "http://schemas.microsoft.com/office/powerpoint/2010/main"
+SECTION_EXTENSION_URI = "{521415D9-36F7-43E2-AB2F-B90AF26B5E84}"
 ASSET_TOP_RIGHT = PPT_TEMPLATE_DIR / "top_right.png"
 ASSET_BOTTOM_RIGHT = PPT_TEMPLATE_DIR / "bottom_right.png"
 COLOR_BG = RGBColor(247, 244, 242)
@@ -67,10 +73,11 @@ def write_powerpoint_report(
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    presentation = Presentation()
-    _configure_presentation(presentation)
+    presentation = _create_presentation()
     slide_number = 1
     _add_title_slide(presentation, raw_df, report_name, company_name, project_name)
+    slide_number += 1
+    _add_safe_harbor_slide(presentation, slide_number=slide_number)
     slide_number += 1
     _add_section_slide(
         presentation,
@@ -150,6 +157,8 @@ def write_powerpoint_report(
     )
     slide_number += 1
     _add_unmapped_slide(presentation, oci_mapping_df, slide_number=slide_number)
+    _add_closing_slide(presentation)
+    _configure_presentation_sections(presentation)
     presentation.save(output_path)
 
 
@@ -158,6 +167,131 @@ def _configure_presentation(presentation: Presentation) -> None:
     presentation.slide_height = Inches(7.5)
 
 
+def _create_presentation() -> Presentation:
+    configured_path = os.getenv(PPT_TEMPLATE_ENV_VAR, "").strip()
+    template_path = Path(configured_path).expanduser() if configured_path else DEFAULT_PPT_TEMPLATE
+    if configured_path and not template_path.is_file():
+        raise FileNotFoundError(
+            f"PowerPoint template configured in {PPT_TEMPLATE_ENV_VAR} was not found: {template_path}"
+        )
+    if template_path.is_file():
+        presentation = Presentation(str(template_path))
+        _remove_template_slides(presentation)
+        return presentation
+
+    presentation = Presentation()
+    _configure_presentation(presentation)
+    return presentation
+
+
+def _remove_template_slides(presentation: Presentation) -> None:
+    slide_ids = presentation.slides._sldIdLst
+    for slide_id in list(slide_ids):
+        presentation.part.drop_rel(slide_id.rId)
+        slide_ids.remove(slide_id)
+
+
+def _blank_slide_layout(presentation: Presentation, *, dark: bool = False):
+    preferred_name = "Dark - Blank" if dark else "Light - Blank"
+    for layout in presentation.slide_layouts:
+        if layout.name.strip().casefold() == preferred_name.casefold():
+            return layout
+
+    for layout in presentation.slide_layouts:
+        if "blank" in layout.name.casefold():
+            return layout
+
+    fallback_index = min(6, len(presentation.slide_layouts) - 1)
+    return presentation.slide_layouts[fallback_index]
+
+
+def _find_slide_layout(presentation: Presentation, layout_name: str):
+    expected_name = layout_name.strip().casefold()
+    for master in presentation.slide_masters:
+        for layout in master.slide_layouts:
+            if layout.name.strip().casefold() == expected_name:
+                return layout
+    return None
+
+
+def _add_closing_slide(presentation: Presentation) -> None:
+    layout = _find_slide_layout(presentation, "Light - Closing Slide")
+    if layout is not None:
+        presentation.slides.add_slide(layout)
+        return
+
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
+    _paint_slide(slide)
+    _add_oracle_banner(slide)
+    _add_title(slide, "Obrigado", 0.76, 2.7, 7.4)
+    _add_title_accent(slide, 0.76, 3.43)
+
+
+def _configure_presentation_sections(presentation: Presentation) -> None:
+    slide_ids = [str(slide_id.id) for slide_id in presentation.slides._sldIdLst]
+    if not slide_ids:
+        return
+
+    default_end = min(3, len(slide_ids) - 1)
+    sections = [
+        ("Default Section", slide_ids[:default_end]),
+        ("Comercial", slide_ids[default_end:-1]),
+        ("Final", slide_ids[-1:]),
+    ]
+    section_list = _get_or_create_section_list(presentation)
+    for child in list(section_list):
+        section_list.remove(child)
+
+    for name, section_slide_ids in sections:
+        if not section_slide_ids:
+            continue
+        section = etree.SubElement(section_list, f"{{{P14_NAMESPACE}}}section")
+        section.set("name", name)
+        section.set("id", "{" + str(uuid4()).upper() + "}")
+        slide_id_list = etree.SubElement(section, f"{{{P14_NAMESPACE}}}sldIdLst")
+        for slide_id in section_slide_ids:
+            slide_id_element = etree.SubElement(slide_id_list, f"{{{P14_NAMESPACE}}}sldId")
+            slide_id_element.set("id", slide_id)
+
+
+def _get_or_create_section_list(presentation: Presentation):
+    root = presentation.part._element
+    section_tag = f"{{{P14_NAMESPACE}}}sectionLst"
+    for element in root.iter():
+        if element.tag == section_tag:
+            return element
+
+    extension_list = root.find(qn("p:extLst"))
+    if extension_list is None:
+        extension_list = etree.SubElement(root, qn("p:extLst"))
+    extension = etree.SubElement(extension_list, qn("p:ext"))
+    extension.set("uri", SECTION_EXTENSION_URI)
+    return etree.SubElement(extension, section_tag, nsmap={"p14": P14_NAMESPACE})
+
+def _add_safe_harbor_slide(presentation: Presentation, *, slide_number: int) -> None:
+    layout = _find_slide_layout(presentation, "Light - Safe Harbor")
+    if layout is not None:
+        slide = presentation.slides.add_slide(layout)
+    else:
+        slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
+        _paint_slide(slide)
+        _add_title(slide, "Safe harbor statement", 0.84, 0.2, 11.67)
+        statement = (
+            "The following is intended to outline our general product direction. It is intended for "
+            "information purposes only, and may not be incorporated into any contract. It is not a "
+            "commitment to deliver any material, code, or functionality, and should not be relied upon "
+            "in making purchasing decisions. The development, release, timing, and pricing of any "
+            "features or functionality described for Oracle's products may change and remains at the "
+            "sole discretion of Oracle Corporation."
+        )
+        text_box = slide.shapes.add_textbox(Inches(0.84), Inches(1.76), Inches(8.74), Inches(2.02))
+        _configure_text_frame(text_box.text_frame, margin_left=0.0, margin_right=0.0)
+        paragraph = text_box.text_frame.paragraphs[0]
+        paragraph.text = statement
+        _style_paragraph(paragraph, bold=False, size=18, color=_rgb_tuple(COLOR_TEXT))
+
+    _add_footer(slide, FOOTER_TEXT, slide_number=slide_number)
+
 def _add_title_slide(
     presentation: Presentation,
     raw_df: pd.DataFrame,
@@ -165,31 +299,31 @@ def _add_title_slide(
     company_name: str,
     project_name: str,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
-    _paint_slide(slide, dark=True)
-    _add_picture_if_exists(slide, ASSET_COVER_BG, 0, 0, 13.333, 7.5)
-    _add_picture_if_exists(slide, ASSET_ORACLE_LOGO, 0.76, 1.02, 1.67, 0.35)
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
+    _paint_slide(slide)
+    _add_oracle_banner(slide)
     header_project = project_name.strip() or "Cloud Billing Conversion Executive Summary"
-    _add_title(slide, header_project, 0.76, 2.45, 7.4, dark=True)
+    _add_title(slide, header_project, 0.76, 2.45, 7.4)
+    _add_title_accent(slide, 0.76, 3.18)
     client_name = company_name.strip() or _derive_client_name(report_name)
     if client_name:
         client_box = slide.shapes.add_textbox(Inches(0.76), Inches(1.65), Inches(6.0), Inches(0.45))
         _configure_text_frame(client_box.text_frame, margin_left=0.02, margin_right=0.02)
         client_paragraph = client_box.text_frame.paragraphs[0]
         client_paragraph.text = client_name
-        _style_paragraph(client_paragraph, bold=False, size=13, color=(255, 255, 255))
+        _style_paragraph(client_paragraph, bold=False, size=13, color=_rgb_tuple(COLOR_MUTED))
     period = _mode_or_default(raw_df, "period", "N/A")
     cloud = _mode_or_default(raw_df, "cloud", "cloud").upper()
     subtitle = slide.shapes.add_textbox(Inches(0.76), Inches(3.85), Inches(7.6), Inches(0.8))
     _configure_text_frame(subtitle.text_frame, margin_left=0.02, margin_right=0.02)
     paragraph = subtitle.text_frame.paragraphs[0]
     paragraph.text = f"Assessment scope | Billing period: {period} | Source: {cloud}"
-    _style_paragraph(paragraph, bold=False, size=20, color=_rgb_tuple(COLOR_SECONDARY))
+    _style_paragraph(paragraph, bold=False, size=20, color=_rgb_tuple(COLOR_PRIMARY_DARK))
 
     total_cost = float(raw_df["cost"].sum()) if not raw_df.empty else 0.0
     currency = _mode_or_default(raw_df, "currency", "USD")
-    _add_hero_metric(slide, "Total analyzed cost", f"{total_cost:,.2f} {currency}", 0.76, 4.55, dark=True)
-    _add_footer(slide, FOOTER_TEXT, dark=True, slide_number=1)
+    _add_hero_metric(slide, "Total analyzed cost", f"{total_cost:,.2f} {currency}", 0.76, 4.55)
+    _add_footer(slide, FOOTER_TEXT, slide_number=1)
 
 
 def _add_section_slide(
@@ -199,17 +333,17 @@ def _add_section_slide(
     subtitle: str,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
-    _paint_slide(slide, dark=True)
-    _add_picture_if_exists(slide, ASSET_COVER_BG, 0, 0, 13.333, 7.5)
-    _add_picture_if_exists(slide, ASSET_ORACLE_LOGO, 0.76, 1.02, 1.67, 0.35)
-    _add_title(slide, title, 0.76, 2.55, 6.6, dark=True)
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
+    _paint_slide(slide)
+    _add_oracle_banner(slide)
+    _add_title(slide, title, 0.76, 2.55, 6.6)
+    _add_title_accent(slide, 0.76, 3.25)
     sub_box = slide.shapes.add_textbox(Inches(0.76), Inches(3.45), Inches(6.8), Inches(0.5))
     _configure_text_frame(sub_box.text_frame, margin_left=0.02, margin_right=0.02)
     sub_paragraph = sub_box.text_frame.paragraphs[0]
     sub_paragraph.text = subtitle
-    _style_paragraph(sub_paragraph, bold=False, size=18, color=_rgb_tuple(COLOR_SECONDARY))
-    _add_footer(slide, FOOTER_TEXT, dark=True, slide_number=slide_number)
+    _style_paragraph(sub_paragraph, bold=False, size=18, color=_rgb_tuple(COLOR_MUTED))
+    _add_footer(slide, FOOTER_TEXT, slide_number=slide_number)
 
 
 def _add_kpi_slide(
@@ -219,7 +353,7 @@ def _add_kpi_slide(
     oci_mapping_df: pd.DataFrame,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Key Metrics", slide_number)
 
@@ -255,7 +389,7 @@ def _add_top_services_slide(
     categories_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Top Services e Baseline Comparavel", slide_number)
 
@@ -315,7 +449,7 @@ def _add_service_share_slide(
     service_summary_df: pd.DataFrame,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Service Cost Share", slide_number)
 
@@ -355,7 +489,7 @@ def _add_region_slide(
     region_summary_df: pd.DataFrame,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Top Regions by Cost", slide_number)
 
@@ -399,7 +533,7 @@ def _add_migration_complexity_slide(
     oci_mapping_df: pd.DataFrame,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Complexidade de Migracao", slide_number)
     _add_subtitle(slide, "Top servicos por custo posicionados por score de complexidade", 0.76, 1.18, 7.8)
@@ -541,7 +675,7 @@ def _add_processor_performance_slide(
     processor_comparison_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Performance Estimada de CPU", slide_number)
     _add_subtitle(
@@ -680,7 +814,7 @@ def _add_unmapped_slide(
     oci_mapping_df: pd.DataFrame,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Services Requiring OCI Review", slide_number)
     _add_subtitle(slide, "Manual validation queue before final OCI equivalence and sizing", 0.76, 1.18, 7.4)
@@ -725,7 +859,7 @@ def _add_oci_bom_slide(
     oci_bom_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "OCI Part Numbers", slide_number)
 
@@ -845,7 +979,7 @@ def _add_mapping_slide(
     oci_mapping_df: pd.DataFrame,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "AWS to OCI Mapping (Consolidated)", slide_number)
     _add_subtitle(
@@ -898,7 +1032,7 @@ def _add_llm_overview_slide(
     llm_confidence_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "LLM Baseline, Projection and ROI", slide_number)
     _add_subtitle(slide, "Numbers and assumptions generated from billing + OCI mapping context", 0.76, 1.18, 8.0)
@@ -947,7 +1081,7 @@ def _add_llm_plan_slide(
     llm_recommendations_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "LLM Migration Plan and Recommendations", slide_number)
     _add_subtitle(slide, "Phases, risks, dependencies and OCI architecture recommendations", 0.76, 1.18, 8.4)
@@ -1445,7 +1579,7 @@ def _add_finops_baseline_slide(
     categories_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Baseline comparavel", slide_number)
     baseline = baseline_df.copy() if baseline_df is not None else pd.DataFrame()
@@ -1494,7 +1628,7 @@ def _add_effective_rates_slide(
     effective_rates_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Drivers de custo e tarifas efetivas", slide_number)
     rates = effective_rates_df.copy() if effective_rates_df is not None else pd.DataFrame()
@@ -1535,7 +1669,7 @@ def _add_analysis_coverage_slide(
     coverage_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Qualidade e cobertura dos dados", slide_number)
     coverage = coverage_df.copy() if coverage_df is not None else pd.DataFrame()
@@ -1577,7 +1711,7 @@ def _add_priced_business_case_slide(
     coverage_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Business case OCI precificado", slide_number)
     cases = business_case_df.copy() if business_case_df is not None else pd.DataFrame()
@@ -1616,7 +1750,7 @@ def _add_savings_by_service_slide(
     savings_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Saving por tipo de servico", slide_number)
     savings = savings_df.copy() if savings_df is not None else pd.DataFrame()
@@ -1655,7 +1789,7 @@ def _add_savings_waterfall_slide(
     waterfall_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Contribuicao para o business case", slide_number)
     waterfall = waterfall_df.copy() if waterfall_df is not None else pd.DataFrame()
@@ -1723,7 +1857,7 @@ def _add_scenario_recommendation_slide(
     business_case_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
-    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
     _add_standard_frame(slide, "Cenarios e recomendacao", slide_number)
     sensitivity = sensitivity_df.copy() if sensitivity_df is not None else pd.DataFrame()
@@ -1745,21 +1879,32 @@ def _add_scenario_recommendation_slide(
     chart.plots[0].data_labels.number_format = "#,##0"
     chart.series[0].format.line.color.rgb = COLOR_PRIMARY
     _set_chart_fonts(chart)
-    break_even = sensitivity[sensitivity["savings_value"].ge(0)]
-    if not break_even.empty:
-        reduction = float(break_even.iloc[0]["gpu_capacity_reduction_pct"])
-        threshold = f"Break-even aparece a partir de {reduction:.0f}% de reducao da capacidade GPU."
+    projected_range = float(sensitivity["projected_total_cost"].max() - sensitivity["projected_total_cost"].min())
+    if projected_range <= 0.01:
+        capacity_case = cases[cases["scenario"].eq("Capacity equivalent")] if not cases.empty else pd.DataFrame()
+        savings_pct = float(capacity_case.iloc[0]["savings_pct"]) if not capacity_case.empty else 0.0
+        note = (
+            "Nao foram identificados workloads GPU no escopo precificado. "
+            "A reducao de capacidade GPU entre 0% e 50% nao altera o custo projetado.\n\n"
+            f"Economia do cenario de capacidade equivalente: {savings_pct:.1f}% versus o baseline.\n\n"
+            "Validar o escopo sem preco OCI e aplicar preco contratual somente apos cotacao."
+        )
     else:
-        threshold = "A faixa testada nao atinge break-even."
-    retain = cases[cases["scenario"].eq("Retain source GPU")] if not cases.empty else pd.DataFrame()
-    retain_text = ""
-    if not retain.empty:
-        retain_text = f"Retencao temporaria de GPU: economia de {float(retain.iloc[0]['savings_pct']):.1f}% versus o baseline.\n\n"
-    note = (
-        retain_text
-        + threshold
-        + "\n\nMigrar primeiro workloads nao GPU. Validar ocupacao, concorrencia e benchmark GPU antes da conversao. Aplicar preco contratual somente apos cotacao."
-    )
+        break_even = sensitivity[sensitivity["savings_value"].ge(0)]
+        if not break_even.empty:
+            reduction = float(break_even.iloc[0]["gpu_capacity_reduction_pct"])
+            threshold = f"Break-even aparece a partir de {reduction:.0f}% de reducao da capacidade GPU."
+        else:
+            threshold = "A faixa testada nao atinge break-even."
+        retain = cases[cases["scenario"].eq("Retain source GPU")] if not cases.empty else pd.DataFrame()
+        retain_text = ""
+        if not retain.empty:
+            retain_text = f"Retencao temporaria de GPU: economia de {float(retain.iloc[0]['savings_pct']):.1f}% versus o baseline.\n\n"
+        note = (
+            retain_text
+            + threshold
+            + "\n\nMigrar primeiro workloads nao GPU. Validar ocupacao, concorrencia e benchmark GPU antes da conversao. Aplicar preco contratual somente apos cotacao."
+        )
     _add_side_note(slide, note, 9.25, 1.55, 3.15, 4.15, body_size=12)
 
 
@@ -1775,3 +1920,8 @@ def _coverage_metric(dataframe: pd.DataFrame | None, metric: str) -> float:
         return 0.0
     match = dataframe.loc[dataframe["metric"].eq(metric), "coverage_pct"]
     return float(match.iloc[0]) if not match.empty else 0.0
+
+
+
+
+

@@ -292,9 +292,30 @@ Regras aplicadas:
 
 Toda execucao agora gera tambem um `.pptx` ao lado do arquivo Excel.
 
+### Template de origem
+
+O PowerPoint e criado a partir do template corporativo versionado em
+`app/assets/ppt_template/source_template.pptx`. A aplicacao preserva dimensoes, tema,
+slide masters e layouts do arquivo-base. A copia incorporada ao projeto e sanitizada sem
+slides de conteudo; o carregador tambem remove slides de qualquer template personalizado antes de
+gerar o relatorio. A geracao usa `Light - Blank` como layout padrao, inclusive para capa e divisorias. O slide de Safe Harbor usa o layout corporativo `Light - Safe Harbor`.
+O deck final organiza os slides nas secoes `Default Section`, `Comercial` e `Final`; nao e criada uma secao `Anexos`.
+
+Para usar outro template sem alterar o codigo, defina no `.env` um caminho absoluto:
+
+```text
+PPT_TEMPLATE_PATH=C:\caminho\para\template.pptx
+```
+
+O arquivo configurado deve ser um `.pptx` valido. Se `PPT_TEMPLATE_PATH` nao for
+definida, a aplicacao usa o template versionado. Caso o template nao contenha os
+layouts nomeados, o gerador procura outro layout com `Blank` no nome e, por fim, usa
+o layout de fallback.
+
 Slides incluidos:
 
 - capa
+- Safe Harbor statement
 - indicadores principais
 - top servicos por custo consolidado com baseline comparavel, impostos e maior categoria
 - participacao percentual por servico
@@ -309,6 +330,7 @@ Slides incluidos:
 
 - (quando habilitado) secao LLM FinOps com baseline/projecao/ROI e plano de migracao
 - servicos sem mapeamento OCI
+- encerramento com o layout `Light - Closing Slide`
 
 ## Abas geradas no Excel
 
@@ -442,3 +464,10 @@ Quando habilitada, o deck inclui slides adicionais com:
 - adicionar suporte ao GCP BigQuery Billing Export detalhado
 - permitir escolha de provedor LLM e endpoint via UI
 - enriquecer parser PDF AWS para mais variacoes de layout/idioma
+
+
+
+
+
+
+
