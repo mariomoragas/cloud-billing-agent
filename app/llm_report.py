@@ -437,18 +437,18 @@ def _extract_gemini_error(details: str) -> tuple[str, str]:
 
 def _fallback_report(payload: dict[str, object]) -> dict[str, object]:
     baseline = float(payload.get("baseline_total_cost", 0.0))
-    conservative_total = baseline * 0.9
-    base_total = baseline * 0.8
-    aggressive_total = baseline * 0.7
-    base_savings_value = baseline - base_total
-    migration_investment = baseline * 0.15
-    roi_pct = ((base_savings_value - migration_investment) / migration_investment * 100.0) if migration_investment > 0 else 0.0
-    payback_months = (migration_investment / max(base_savings_value, 1e-9)) if base_savings_value > 0 else 0.0
+    conservative_total = baseline
+    base_total = baseline
+    aggressive_total = baseline
+    base_savings_value = 0.0
+    migration_investment = 0.0
+    roi_pct = 0.0
+    payback_months = 0.0
 
     return {
         "executive_summary": (
             "Relatório gerado sem chamada externa de LLM (fallback local). "
-            "Os valores de baseline são exatos do billing fornecido; projeções OCI estão marcadas como estimadas."
+            "Os valores de baseline são exatos do billing fornecido; sem LLM, nenhuma projeção adicional é presumida."
         ),
         "baseline": {
             "current_total_cost": baseline,
@@ -459,10 +459,10 @@ def _fallback_report(payload: dict[str, object]) -> dict[str, object]:
             "conservative_total": conservative_total,
             "base_total": base_total,
             "aggressive_total": aggressive_total,
-            "method_notes": "Estimativa por faixas sem tabela de preços OCI fornecida.",
+            "method_notes": "Projecao LLM indisponivel. Consulte Business_Case e OCI_Priced_BoM para a analise deterministica.",
         },
         "savings": {
-            "base_savings_pct": 20.0,
+            "base_savings_pct": 0.0,
             "base_savings_value": base_savings_value,
             "path_to_30_plus": "Para 30%+, validar rightsizing, storage tiering, egress e refatoração de serviços gerenciados.",
         },
@@ -470,7 +470,7 @@ def _fallback_report(payload: dict[str, object]) -> dict[str, object]:
             "roi_pct": roi_pct,
             "payback_months": payback_months,
             "migration_investment": migration_investment,
-            "assumptions": "Capex/opex de migração estimado em 15% do baseline mensal.",
+            "assumptions": "Investimento de migracao nao fornecido; ROI e payback nao calculados.",
         },
         "migration_plan": [
             {

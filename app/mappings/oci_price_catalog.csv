@@ -1,0 +1,16 @@
+oci_part_number,unit_price_usd,free_allowance,price_as_of,pricing_note,catalog_url
+B109479,3.5,0,2026-09-09,L40S GPU per GPU-hour; public PAYG list price.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B88327,0.0085,10240,2026-09-09,Outbound transfer from North America Europe and UK; first 10 TB per month free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B89057,0.3,0,2026-09-09,File Storage per GB-month.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91627,0.0034,5,2026-09-09,Object requests per 10000 requests; first 50000 requests free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91628,0.0255,10,2026-09-09,Object Storage per GB-month; first 10 GB free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91633,0.0026,10,2026-09-09,Archive Storage per GB-month; first 10 GB free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91961,0.0255,0,2026-09-09,Block Volume storage per GB-month.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B91962,0.0017,0,2026-09-09,Block Volume performance per VPU-GB-month.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93030,0.0113,744,2026-09-09,Flexible Load Balancer base-hour; first 744 hours free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93297,0.01,3000,2026-09-09,Ampere A1 OCPU-hour; first 3000 OCPU-hours free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93298,0.0015,18000,2026-09-09,Ampere A1 memory GB-hour; first 18000 GB-hours free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B93455,0.025,10240,2026-09-09,Outbound transfer from APAC Japan and South America; first 10 TB per month free.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B95909,2.0,0,2026-09-09,A10 GPU per GPU-hour; public PAYG list price.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B97384,0.03,0,2026-09-09,Compute Standard E5 OCPU-hour.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+B97385,0.002,0,2026-09-09,Compute Standard E5 memory GB-hour.,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD

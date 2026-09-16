@@ -27,6 +27,8 @@ BOM_COLUMNS = [
     "source_quantity",
     "source_unit",
     "source_cost",
+    "source_cost_before_tax",
+    "source_group_id",
     "currency",
     "region",
     "confidence",
@@ -443,6 +445,7 @@ def _source_context(
     source_shapes: str = "",
     source_quantity: float,
 ) -> dict[str, object]:
+    source_rows = sorted(group["_source_row"].astype(int).unique().tolist())
     return {
         "source_cloud": _mode(group["cloud"], "unknown"),
         "source_service": _join_unique(group["service_name_original"]),
@@ -451,6 +454,12 @@ def _source_context(
         "source_quantity": source_quantity,
         "source_unit": _mode(group["usage_unit"], "source units"),
         "source_cost": float(group["cost"].sum()),
+        "source_cost_before_tax": float(
+            pd.to_numeric(
+                group.get("cost_before_tax", group["cost"]), errors="coerce"
+            ).fillna(0.0).sum()
+        ),
+        "source_group_id": ",".join(str(value) for value in source_rows),
         "currency": _mode(group["currency"], "USD"),
         "region": _mode(group["region"], "unspecified"),
     }
@@ -460,7 +469,7 @@ def _consolidate_bom_rows(rows: list[dict[str, object]]) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=BOM_COLUMNS)
     df = pd.DataFrame(rows)
-    numeric = ["quantity", "source_quantity", "source_cost"]
+    numeric = ["quantity", "source_quantity", "source_cost", "source_cost_before_tax"]
     keys = [
         "scenario",
         "oci_part_number",
@@ -469,6 +478,7 @@ def _consolidate_bom_rows(rows: list[dict[str, object]]) -> pd.DataFrame:
         "target_profile",
         "unit",
         "source_cloud",
+        "source_group_id",
         "source_unit",
         "currency",
         "region",
@@ -483,6 +493,7 @@ def _consolidate_bom_rows(rows: list[dict[str, object]]) -> pd.DataFrame:
             quantity=("quantity", "sum"),
             source_quantity=("source_quantity", "sum"),
             source_cost=("source_cost", "sum"),
+            source_cost_before_tax=("source_cost_before_tax", "sum"),
             source_service=("source_service", _join_unique),
             source_skus=("source_skus", _join_unique),
             source_shapes=("source_shapes", _join_unique),

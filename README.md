@@ -13,6 +13,8 @@ Esqueleto funcional em Python para:
 - incluir grafico/matriz de complexidade de migracao (top servicos por custo)
 - identificar shapes de compute e estimar ganho de CPU para OCI X9, E5 e E6
 - gerar uma BoM OCI com part numbers e quantidades tecnicas equivalentes quando o billing tiver granularidade suficiente
+- calcular baseline comparavel, tarifas efetivas, cobertura dos dados e drivers de custo
+- precificar a BoM com catalogo OCI PAYG versionado e calcular saving por workload, cenarios e sensibilidade
 - apontar servicos sem de-para para revisao manual
 - gerar analise FinOps/migracao OCI via Gemini API do Google AI Studio (com fallback local quando API indisponivel)
 
@@ -47,8 +49,7 @@ $env:GEMINI_API_KEY="sua_chave_google_ai_studio"
 .venv\Scripts\python.exe -m app.main --input .\seu_billing.csv --cloud aws --llm-model gemini-2.5-flash
 ```
 
-Se `GEMINI_API_KEY` nao estiver definida, a aplicacao gera um fallback local (estimativo)
-e ainda preenche as abas/slides de analise LLM.
+Se `GEMINI_API_KEY` nao estiver definida, a aplicacao gera um fallback local sem presumir percentuais de economia, ROI ou payback. O business case deterministico continua disponivel nas abas e slides FinOps.
 
 ### Configuracao via arquivo `.env` (CLI e Web)
 
@@ -295,13 +296,17 @@ Slides incluidos:
 
 - capa
 - indicadores principais
-- top servicos por custo
+- top servicos por custo consolidado com baseline comparavel, impostos e maior categoria
 - participacao percentual por servico
 - top regioes por custo
 - matriz de complexidade de migracao dos top servicos por custo (score 1-5)
 - performance estimada de CPU para OCI X9, E5 e E6, quando houver shape comparavel
 - dimensionamento e part numbers OCI, com quantidades, confianca e premissas
 - mapeamento consolidado AWS -> OCI
+- saving por tipo de servico
+- contribuicao por workload com impactos negativos a esquerda e positivos a direita
+- sensibilidade de capacidade GPU e recomendacao de ondas de migracao
+
 - (quando habilitado) secao LLM FinOps com baseline/projecao/ROI e plano de migracao
 - servicos sem mapeamento OCI
 
@@ -316,6 +321,16 @@ Slides incluidos:
 - `OCI_BoM` (part numbers OCI e quantidades consolidadas)
 - `OCI_BoM_Review` (linhas que exigem dimensionamento ou validacao manual)
 - `OCI_BoM_Summary` (cenario, cobertura e versao do catalogo)
+- `FinOps_Baseline` (custo faturado, pre-tax, impostos e creditos)
+- `FinOps_Categories` (baseline por categoria)
+- `Effective_Rates` (tarifa efetiva por SKU e unidade)
+- `Analysis_Coverage` (cobertura e confianca dos campos)
+- `OCI_Priced_BoM` (quantidades, preco PAYG, free tier e custo OCI estimado)
+- `Savings_by_Service` (origem versus OCI por workload)
+- `Business_Case` (cenarios e escopo sem preco)
+- `Savings_Waterfall` (contribuicao por workload)
+- `Sensitivity` (sensibilidade de reducao de capacidade GPU)
+
 - `Data_Quality`
 - `LLM_Resumo`
 - `LLM_Migracao`
@@ -377,7 +392,7 @@ Regras de integridade:
 - a BoM representa o cenario `Capacity equivalent`; nao aplica rightsizing por utilizacao
 - para x86, 1 OCPU OCI equivale a 2 vCPUs de origem; para Arm/Ampere A1, 1 OCPU equivale a 1 vCPU de origem
 - cobrancas de reserva, Savings Plans e `HeavyUsage` nao viram capacidade para evitar dupla contagem
-- a aplicacao nao aplica preco OCI automaticamente e nao mistura quantidade tecnica com projecao financeira
+- a aba `OCI_BoM` permanece tecnica; a precificacao ocorre separadamente em `OCI_Priced_BoM` usando catalogo PAYG versionado
 - servicos gerenciados, tiers proprietarios e linhas sem metrica suficiente ficam em `OCI_BoM_Review`
 - cada linha inclui confianca, premissa, origem do consumo e versao do catalogo OCI
 
@@ -392,6 +407,27 @@ A fonte dos part numbers e a API publica do OCI Price List. O snapshot incluido 
 - https://www.oracle.com/cloud/price-list/
 
 Azure e GCP continuam gerando a fila de revisao quando o export nao fornece uma regra quantitativa auditavel. Novos shapes e servicos devem ser adicionados aos catalogos somente com especificacoes verificadas.
+## Analise FinOps deterministica - fases 1 e 2
+
+A fase 1 usa apenas o billing normalizado para gerar baseline auditavel, categorias, tarifas efetivas e cobertura dos dados. Impostos, creditos e custos sem granularidade permanecem separados.
+
+A fase 2 combina somente quantidades auditaveis da BoM com `app/mappings/oci_price_catalog.csv`. O calculo aplica preco PAYG publico, free tiers registrados no catalogo e carry-forward do custo de origem para o escopo sem preco OCI. Nenhuma economia e presumida para linhas sem cobertura.
+
+Cenarios incluidos:
+
+- capacidade equivalente sem rightsizing ou desconto contratual
+- retencao temporaria de GPU com migracao dos demais workloads precificados
+- sensibilidade de 20% sobre preco OCI, explicitamente marcada como dependente de cotacao
+- sensibilidade de reducao de capacidade GPU entre 0% e 50%
+
+O resultado nao representa proposta comercial. Precos, regioes, moeda, tenancy, suporte, licencas e descontos contratuais devem ser validados antes do compromisso com o cliente.
+
+Catalogo de precos:
+
+- `app/mappings/oci_price_catalog.csv`: part number, preco unitario USD, free tier, data e fonte oficial
+- https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
+- https://www.oracle.com/cloud/price-list/
+
 ## Analise LLM no PowerPoint
 
 Quando habilitada, o deck inclui slides adicionais com:

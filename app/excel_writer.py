@@ -33,6 +33,15 @@ def write_billing_report(
     oci_bom_df: pd.DataFrame | None = None,
     oci_bom_review_df: pd.DataFrame | None = None,
     oci_bom_summary_df: pd.DataFrame | None = None,
+    finops_baseline_df: pd.DataFrame | None = None,
+    finops_categories_df: pd.DataFrame | None = None,
+    effective_rates_df: pd.DataFrame | None = None,
+    analysis_coverage_df: pd.DataFrame | None = None,
+    oci_priced_bom_df: pd.DataFrame | None = None,
+    savings_by_service_df: pd.DataFrame | None = None,
+    business_case_df: pd.DataFrame | None = None,
+    savings_waterfall_df: pd.DataFrame | None = None,
+    sensitivity_df: pd.DataFrame | None = None,
     extra_summaries: dict[str, pd.DataFrame] | None = None,
     data_quality_df: pd.DataFrame | None = None,
     llm_report_df: pd.DataFrame | None = None,
@@ -59,6 +68,15 @@ def write_billing_report(
             oci_bom_review_df.to_excel(writer, sheet_name="OCI_BoM_Review", index=False)
         if oci_bom_summary_df is not None and not oci_bom_summary_df.empty:
             oci_bom_summary_df.to_excel(writer, sheet_name="OCI_BoM_Summary", index=False)
+        _write_optional_sheet(writer, finops_baseline_df, "FinOps_Baseline")
+        _write_optional_sheet(writer, finops_categories_df, "FinOps_Categories")
+        _write_optional_sheet(writer, effective_rates_df, "Effective_Rates")
+        _write_optional_sheet(writer, analysis_coverage_df, "Analysis_Coverage")
+        _write_optional_sheet(writer, oci_priced_bom_df, "OCI_Priced_BoM")
+        _write_optional_sheet(writer, savings_by_service_df, "Savings_by_Service")
+        _write_optional_sheet(writer, business_case_df, "Business_Case")
+        _write_optional_sheet(writer, savings_waterfall_df, "Savings_Waterfall")
+        _write_optional_sheet(writer, sensitivity_df, "Sensitivity")
         if data_quality_df is not None and not data_quality_df.empty:
             data_quality_df.to_excel(writer, sheet_name="Data_Quality", index=False)
         if llm_report_df is not None and not llm_report_df.empty:
@@ -133,6 +151,7 @@ def _create_charts_sheet(workbook) -> None:
     _add_region_cost_chart(workbook, charts_sheet)
     _add_migration_complexity_chart(workbook, charts_sheet)
     _add_processor_performance_chart(workbook, charts_sheet)
+    _add_finops_charts(workbook, charts_sheet)
     _add_optional_chart(
         workbook,
         charts_sheet,
@@ -601,3 +620,118 @@ def _resolve_service_category_column(service_sheet) -> int:
         if header in header_map:
             return header_map[header]
     return 2
+
+
+
+def _write_optional_sheet(
+    writer: pd.ExcelWriter,
+    dataframe: pd.DataFrame | None,
+    sheet_name: str,
+) -> None:
+    if dataframe is not None and not dataframe.empty:
+        dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
+
+
+def _add_finops_charts(workbook, charts_sheet) -> None:
+    if "FinOps_Categories" in workbook.sheetnames:
+        source = workbook["FinOps_Categories"]
+        if source.max_row >= 2:
+            chart = BarChart()
+            chart.type = "bar"
+            chart.style = 10
+            chart.title = "Baseline por categoria"
+            chart.y_axis.title = "Categoria"
+            chart.x_axis.title = "Custo"
+            chart.height = 10.5
+            chart.width = 8.8
+            chart.legend = None
+            chart.gapWidth = 45
+            data = Reference(source, min_col=2, min_row=1, max_row=min(source.max_row, 9))
+            categories = Reference(source, min_col=1, min_row=2, max_row=min(source.max_row, 9))
+            chart.add_data(data, titles_from_data=True)
+            chart.set_categories(categories)
+            chart.dataLabels = DataLabelList()
+            chart.dataLabels.showVal = True
+            chart.dataLabels.position = "outEnd"
+            charts_sheet.add_chart(chart, "A72")
+
+    if "Savings_by_Service" in workbook.sheetnames:
+        source = workbook["Savings_by_Service"]
+        if source.max_row >= 2:
+            chart = BarChart()
+            chart.type = "col"
+            chart.style = 10
+            chart.title = "Origem versus OCI por workload"
+            chart.y_axis.title = "Custo"
+            chart.x_axis.title = "Workload"
+            chart.height = 10.5
+            chart.width = 8.8
+            data = Reference(source, min_col=2, max_col=3, min_row=1, max_row=min(source.max_row, 9))
+            categories = Reference(source, min_col=1, min_row=2, max_row=min(source.max_row, 9))
+            chart.add_data(data, titles_from_data=True)
+            chart.set_categories(categories)
+            chart.legend.position = "b"
+            charts_sheet.add_chart(chart, "J72")
+
+    if "Business_Case" in workbook.sheetnames:
+        source = workbook["Business_Case"]
+        if source.max_row >= 2:
+            chart = BarChart()
+            chart.type = "col"
+            chart.style = 10
+            chart.title = "Cenarios de custo"
+            chart.y_axis.title = "Custo projetado"
+            chart.x_axis.title = "Cenario"
+            chart.height = 10.5
+            chart.width = 8.8
+            chart.legend = None
+            data = Reference(source, min_col=3, min_row=1, max_row=source.max_row)
+            categories = Reference(source, min_col=1, min_row=2, max_row=source.max_row)
+            chart.add_data(data, titles_from_data=True)
+            chart.set_categories(categories)
+            chart.dataLabels = DataLabelList()
+            chart.dataLabels.showVal = True
+            chart.dataLabels.position = "outEnd"
+            charts_sheet.add_chart(chart, "A96")
+
+
+def _format_finops_sheets(workbook) -> None:
+    target_sheets = {
+        "FinOps_Baseline",
+        "FinOps_Categories",
+        "Effective_Rates",
+        "Analysis_Coverage",
+        "OCI_Priced_BoM",
+        "Savings_by_Service",
+        "Business_Case",
+        "Savings_Waterfall",
+        "Sensitivity",
+    }
+    numeric_tokens = (
+        "cost",
+        "value",
+        "rate",
+        "price",
+        "quantity",
+        "amount",
+        "saving",
+        "allowance",
+    )
+    percent_tokens = ("pct", "coverage")
+    for sheet_name in target_sheets.intersection(workbook.sheetnames):
+        worksheet = workbook[sheet_name]
+        worksheet.freeze_panes = "A2"
+        worksheet.auto_filter.ref = worksheet.dimensions
+        headers = {
+            cell.column: str(cell.value or "").strip().lower()
+            for cell in worksheet[1]
+        }
+        for column_index, header in headers.items():
+            number_format = None
+            if any(token in header for token in percent_tokens):
+                number_format = '0.0"%"'
+            elif any(token in header for token in numeric_tokens):
+                number_format = '#,##0.00'
+            if number_format:
+                for row in range(2, worksheet.max_row + 1):
+                    worksheet.cell(row=row, column=column_index).number_format = number_format

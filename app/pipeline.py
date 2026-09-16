@@ -11,6 +11,7 @@ from app.aggregator import (
     summarize_by_service,
 )
 from app.excel_writer import write_billing_report
+from app.finops_analysis import build_finops_analysis
 from app.input_validation import validate_billing_input_file
 from app.llm_report import build_llm_report_artifacts
 from app.normalizer import load_and_normalize_csv
@@ -93,6 +94,7 @@ def process_billing_file(
         }
     processor_artifacts = build_processor_analysis(raw_df)
     oci_bom_artifacts = build_oci_bom(raw_df)
+    finops_artifacts = build_finops_analysis(raw_df, oci_bom_artifacts.bom_df)
     llm_artifacts = build_llm_report_artifacts(
         raw_df=raw_df,
         service_summary_df=service_summary_df,
@@ -113,6 +115,15 @@ def process_billing_file(
         oci_bom_df=oci_bom_artifacts.bom_df,
         oci_bom_review_df=oci_bom_artifacts.review_df,
         oci_bom_summary_df=oci_bom_artifacts.summary_df,
+        finops_baseline_df=finops_artifacts.baseline_df,
+        finops_categories_df=finops_artifacts.categories_df,
+        effective_rates_df=finops_artifacts.effective_rates_df,
+        analysis_coverage_df=finops_artifacts.coverage_df,
+        oci_priced_bom_df=finops_artifacts.priced_bom_df,
+        savings_by_service_df=finops_artifacts.savings_df,
+        business_case_df=finops_artifacts.business_case_df,
+        savings_waterfall_df=finops_artifacts.waterfall_df,
+        sensitivity_df=finops_artifacts.sensitivity_df,
         extra_summaries=extra_summaries,
         data_quality_df=data_quality_df,
         llm_report_df=llm_artifacts.summary_df,
@@ -135,6 +146,15 @@ def process_billing_file(
             oci_bom_review_df=oci_bom_artifacts.review_df,
             oci_bom_summary_df=oci_bom_artifacts.summary_df,
 
+            finops_baseline_df=finops_artifacts.baseline_df,
+            finops_categories_df=finops_artifacts.categories_df,
+            effective_rates_df=finops_artifacts.effective_rates_df,
+            analysis_coverage_df=finops_artifacts.coverage_df,
+            oci_priced_bom_df=finops_artifacts.priced_bom_df,
+            savings_by_service_df=finops_artifacts.savings_df,
+            business_case_df=finops_artifacts.business_case_df,
+            savings_waterfall_df=finops_artifacts.waterfall_df,
+            sensitivity_df=finops_artifacts.sensitivity_df,
             llm_report_df=llm_artifacts.summary_df,
             llm_migration_df=llm_artifacts.migration_df,
             llm_recommendations_df=llm_artifacts.recommendations_df,
@@ -156,6 +176,15 @@ def process_billing_file(
         oci_bom_df=oci_bom_artifacts.bom_df,
         oci_bom_review_df=oci_bom_artifacts.review_df,
         oci_bom_summary_df=oci_bom_artifacts.summary_df,
+        finops_baseline_df=finops_artifacts.baseline_df,
+        finops_categories_df=finops_artifacts.categories_df,
+        effective_rates_df=finops_artifacts.effective_rates_df,
+        analysis_coverage_df=finops_artifacts.coverage_df,
+        oci_priced_bom_df=finops_artifacts.priced_bom_df,
+        savings_by_service_df=finops_artifacts.savings_df,
+        business_case_df=finops_artifacts.business_case_df,
+        savings_waterfall_df=finops_artifacts.waterfall_df,
+        sensitivity_df=finops_artifacts.sensitivity_df,
         llm_report_df=llm_artifacts.summary_df,
         llm_migration_df=llm_artifacts.migration_df,
         llm_recommendations_df=llm_artifacts.recommendations_df,

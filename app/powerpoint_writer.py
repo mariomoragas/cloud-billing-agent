@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 
 import pandas as pd
 from pptx import Presentation
 from pptx.chart.data import ChartData
 from pptx.dml.color import RGBColor
-from pptx.enum.chart import XL_CHART_TYPE, XL_DATA_LABEL_POSITION, XL_LEGEND_POSITION
+from pptx.enum.chart import (
+    XL_CHART_TYPE,
+    XL_DATA_LABEL_POSITION,
+    XL_LEGEND_POSITION,
+    XL_TICK_LABEL_POSITION,
+)
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.util import Inches, Pt
@@ -42,6 +48,15 @@ def write_powerpoint_report(
     oci_bom_df: pd.DataFrame | None = None,
     oci_bom_review_df: pd.DataFrame | None = None,
     oci_bom_summary_df: pd.DataFrame | None = None,
+    finops_baseline_df: pd.DataFrame | None = None,
+    finops_categories_df: pd.DataFrame | None = None,
+    effective_rates_df: pd.DataFrame | None = None,
+    analysis_coverage_df: pd.DataFrame | None = None,
+    oci_priced_bom_df: pd.DataFrame | None = None,
+    savings_by_service_df: pd.DataFrame | None = None,
+    business_case_df: pd.DataFrame | None = None,
+    savings_waterfall_df: pd.DataFrame | None = None,
+    sensitivity_df: pd.DataFrame | None = None,
     llm_report_df: pd.DataFrame | None = None,
     llm_migration_df: pd.DataFrame | None = None,
     llm_recommendations_df: pd.DataFrame | None = None,
@@ -66,7 +81,13 @@ def write_powerpoint_report(
     slide_number += 1
     _add_kpi_slide(presentation, raw_df, service_summary_df, oci_mapping_df, slide_number=slide_number)
     slide_number += 1
-    _add_top_services_slide(presentation, service_summary_df, slide_number=slide_number)
+    _add_top_services_slide(
+        presentation,
+        service_summary_df,
+        finops_baseline_df,
+        finops_categories_df,
+        slide_number=slide_number,
+    )
     slide_number += 1
     _add_service_share_slide(presentation, service_summary_df, slide_number=slide_number)
     slide_number += 1
@@ -89,7 +110,8 @@ def write_powerpoint_report(
     slide_number += 1
     _add_mapping_slide(presentation, oci_mapping_df, slide_number=slide_number)
     slide_number += 1
-    if llm_report_df is not None and not llm_report_df.empty:
+    has_llm_analysis = llm_report_df is not None and not llm_report_df.empty
+    if has_llm_analysis:
         _add_section_slide(
             presentation,
             title="LLM FinOps Analysis",
@@ -104,6 +126,15 @@ def write_powerpoint_report(
             slide_number=slide_number,
         )
         slide_number += 1
+
+    _add_savings_by_service_slide(presentation, savings_by_service_df, slide_number)
+    slide_number += 1
+    _add_savings_waterfall_slide(presentation, savings_waterfall_df, slide_number)
+    slide_number += 1
+    _add_scenario_recommendation_slide(presentation, sensitivity_df, business_case_df, slide_number)
+    slide_number += 1
+
+    if has_llm_analysis:
         _add_llm_plan_slide(
             presentation,
             llm_migration_df=llm_migration_df,
@@ -220,11 +251,13 @@ def _add_kpi_slide(
 def _add_top_services_slide(
     presentation: Presentation,
     service_summary_df: pd.DataFrame,
+    baseline_df: pd.DataFrame | None,
+    categories_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
     slide = presentation.slides.add_slide(presentation.slide_layouts[6])
     _paint_slide(slide)
-    _add_standard_frame(slide, "Top Services by Cost", slide_number)
+    _add_standard_frame(slide, "Top Services e Baseline Comparavel", slide_number)
 
     service_label_column = _resolve_service_label_column(service_summary_df)
     top_services = _top_with_others(service_summary_df, service_label_column, "total_cost", 8)
@@ -245,19 +278,36 @@ def _add_top_services_slide(
     chart.value_axis.tick_labels.number_format = '#,##0'
     chart.plots[0].has_data_labels = True
     chart.plots[0].data_labels.position = XL_DATA_LABEL_POSITION.OUTSIDE_END
+    chart.plots[0].data_labels.number_format = "#,##0"
     chart.series[0].format.fill.solid()
     chart.series[0].format.fill.fore_color.rgb = COLOR_PRIMARY
     chart.series[0].format.line.color.rgb = COLOR_PRIMARY
     _set_chart_fonts(chart)
-    _add_subtitle(slide, "Monthly spend concentration across the main billed services", 0.76, 1.18, 6.8)
-    _add_side_note(
-        slide,
-        "Prioritize OCI mapping and optimization on the first bars. They usually capture most of the monthly spend.",
-        9.65,
-        1.7,
-        2.8,
-        2.4,
+    _add_subtitle(slide, "Concentracao por servico e reconciliacao do custo faturado", 0.76, 1.18, 7.4)
+    baseline = baseline_df.copy() if baseline_df is not None else pd.DataFrame()
+    categories = categories_df.copy() if categories_df is not None else pd.DataFrame()
+    currency = str(baseline.iloc[0].get("currency", "USD")) if not baseline.empty else "USD"
+    gross = _finops_metric(baseline, "Gross billed cost")
+    pretax = _finops_metric(baseline, "Comparable pre-tax baseline")
+    taxes = _finops_metric(baseline, "Taxes")
+    category_note = ""
+    if not categories.empty:
+        category_lines = []
+        ordered_categories = categories.sort_values("gross_cost", ascending=False)
+        for _, category in ordered_categories.iterrows():
+            category_lines.append(
+                f"{category['analysis_category']}: "
+                f"{float(category['gross_cost']):,.0f} {currency} "
+                f"({float(category['gross_share_pct']):.1f}%)"
+            )
+        category_note = "\n\nConsumo por categoria:\n" + "\n".join(category_lines)
+    note = (
+        f"Custo faturado\n{gross:,.2f} {currency}\n\n"
+        f"Baseline pre-tax\n{pretax:,.2f} {currency}\n\n"
+        f"Impostos separados\n{taxes:,.2f} {currency}"
+        + category_note
     )
+    _add_side_note(slide, note, 9.45, 1.30, 3.0, 5.25, body_size=9)
 
 
 def _add_service_share_slide(
@@ -328,6 +378,7 @@ def _add_region_slide(
     chart.value_axis.tick_labels.number_format = '#,##0'
     chart.plots[0].has_data_labels = True
     chart.plots[0].data_labels.position = XL_DATA_LABEL_POSITION.OUTSIDE_END
+    chart.plots[0].data_labels.number_format = "#,##0"
     chart.series[0].format.fill.solid()
     chart.series[0].format.fill.fore_color.rgb = COLOR_SECONDARY
     chart.series[0].format.line.color.rgb = COLOR_SECONDARY
@@ -1384,3 +1435,343 @@ def _configure_text_frame(
     frame.margin_right = Inches(margin_right)
     frame.margin_top = Inches(margin_top)
     frame.margin_bottom = Inches(margin_bottom)
+
+
+
+
+def _add_finops_baseline_slide(
+    presentation: Presentation,
+    baseline_df: pd.DataFrame | None,
+    categories_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Baseline comparavel", slide_number)
+    baseline = baseline_df.copy() if baseline_df is not None else pd.DataFrame()
+    categories = categories_df.copy() if categories_df is not None else pd.DataFrame()
+    if baseline.empty:
+        _add_insight_box(slide, "Dados insuficientes para calcular o baseline comparavel.", 0.76, 1.8, 8.8, 1.4)
+        return
+    currency = str(baseline.iloc[0].get("currency", "USD"))
+    gross = _finops_metric(baseline, "Gross billed cost")
+    pretax = _finops_metric(baseline, "Comparable pre-tax baseline")
+    taxes = _finops_metric(baseline, "Taxes")
+    for index, (label, value) in enumerate((
+        ("Custo faturado", gross),
+        ("Baseline pre-tax", pretax),
+        ("Impostos separados", taxes),
+    )):
+        _add_kpi_card(slide, label, f"{value:,.2f} {currency}", 0.76 + index * 3.0, 1.45)
+    if not categories.empty:
+        top = categories.sort_values("gross_cost", ascending=False).head(6)
+        data = ChartData()
+        data.categories = list(top["analysis_category"])
+        data.add_series("Custo", [float(value) for value in top["gross_cost"]])
+        chart = slide.shapes.add_chart(
+            XL_CHART_TYPE.BAR_CLUSTERED,
+            Inches(0.76), Inches(3.15), Inches(8.45), Inches(3.0), data,
+        ).chart
+        chart.has_legend = False
+        chart.value_axis.has_major_gridlines = True
+        chart.plots[0].has_data_labels = True
+        chart.plots[0].data_labels.position = XL_DATA_LABEL_POSITION.OUTSIDE_END
+        chart.plots[0].data_labels.number_format = "#,##0"
+        chart.series[0].format.fill.solid()
+        chart.series[0].format.fill.fore_color.rgb = COLOR_PRIMARY
+        chart.series[0].format.line.color.rgb = COLOR_PRIMARY
+        _set_chart_fonts(chart)
+        top_share = float(top.iloc[0].get("gross_share_pct", 0.0))
+        _add_side_note(
+            slide,
+            f"{top.iloc[0]['analysis_category']} representa {top_share:.1f}% do custo faturado. Impostos e creditos permanecem separados do comparativo OCI.",
+            9.5, 3.2, 2.9, 2.35, body_size=12,
+        )
+
+
+def _add_effective_rates_slide(
+    presentation: Presentation,
+    effective_rates_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Drivers de custo e tarifas efetivas", slide_number)
+    rates = effective_rates_df.copy() if effective_rates_df is not None else pd.DataFrame()
+    if rates.empty:
+        _add_insight_box(slide, "O billing nao possui quantidade e unidade suficientes para calcular tarifas efetivas.", 0.76, 1.8, 9.2, 1.4)
+        return
+    rates = rates.sort_values("pre_tax_cost", ascending=False).head(7)
+    data = ChartData()
+    labels = [str(value)[:27] for value in rates["source_sku"]]
+    data.categories = labels
+    data.add_series("Custo pre-tax", [float(value) for value in rates["pre_tax_cost"]])
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.BAR_CLUSTERED,
+        Inches(0.76), Inches(1.55), Inches(7.7), Inches(4.9), data,
+    ).chart
+    chart.has_legend = False
+    chart.value_axis.has_major_gridlines = True
+    chart.series[0].format.fill.solid()
+    chart.series[0].format.fill.fore_color.rgb = COLOR_SECONDARY
+    chart.series[0].format.line.color.rgb = COLOR_SECONDARY
+    _set_chart_fonts(chart)
+    box = slide.shapes.add_textbox(Inches(8.75), Inches(1.55), Inches(3.75), Inches(4.9))
+    frame = box.text_frame
+    _configure_text_frame(frame, margin_left=0.08, margin_right=0.05)
+    frame.clear()
+    title = frame.paragraphs[0]
+    title.text = "Tarifa efetiva"
+    _style_paragraph(title, bold=True, size=15, color=_rgb_tuple(COLOR_PRIMARY_DARK))
+    for _, row in rates.head(6).iterrows():
+        paragraph = frame.add_paragraph()
+        unit = str(row.get("usage_unit", "")).strip() or "unidade"
+        paragraph.text = f"{str(row['source_sku'])[:24]}: {float(row['effective_rate']):,.5f} por {unit}"
+        _style_paragraph(paragraph, bold=False, size=11, color=_rgb_tuple(COLOR_TEXT))
+
+
+def _add_analysis_coverage_slide(
+    presentation: Presentation,
+    coverage_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Qualidade e cobertura dos dados", slide_number)
+    coverage = coverage_df.copy() if coverage_df is not None else pd.DataFrame()
+    if coverage.empty:
+        _add_insight_box(slide, "Nao ha metricas de cobertura disponiveis.", 0.76, 1.8, 8.8, 1.4)
+        return
+    coverage = coverage[coverage["confidence"].ne("N/A")].copy()
+    data = ChartData()
+    data.categories = list(coverage["metric"])
+    data.add_series("Cobertura", [float(value) for value in coverage["coverage_pct"]])
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.BAR_CLUSTERED,
+        Inches(0.76), Inches(1.55), Inches(8.4), Inches(4.9), data,
+    ).chart
+    chart.has_legend = False
+    chart.value_axis.minimum_scale = 0
+    chart.value_axis.maximum_scale = 100
+    chart.value_axis.tick_labels.number_format = '0"%"'
+    chart.value_axis.has_major_gridlines = True
+    chart.plots[0].has_data_labels = True
+    chart.plots[0].data_labels.position = XL_DATA_LABEL_POSITION.OUTSIDE_END
+    chart.plots[0].data_labels.number_format = "#,##0"
+    chart.plots[0].data_labels.number_format = '0.0"%"'
+    chart.series[0].format.fill.solid()
+    chart.series[0].format.fill.fore_color.rgb = RGBColor(124, 151, 88)
+    chart.series[0].format.line.color.rgb = RGBColor(124, 151, 88)
+    _set_chart_fonts(chart)
+    low = coverage.sort_values("coverage_pct").iloc[0]
+    _add_side_note(
+        slide,
+        f"Menor cobertura: {low['metric']} ({float(low['coverage_pct']):.1f}%). Resultados dependentes desse campo devem ser validados antes do compromisso comercial.",
+        9.45, 1.75, 2.95, 2.7, body_size=12,
+    )
+
+
+def _add_priced_business_case_slide(
+    presentation: Presentation,
+    business_case_df: pd.DataFrame | None,
+    coverage_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Business case OCI precificado", slide_number)
+    cases = business_case_df.copy() if business_case_df is not None else pd.DataFrame()
+    if cases.empty:
+        _add_insight_box(slide, "A BoM nao possui SKUs OCI com preco versionado suficiente para um business case.", 0.76, 1.8, 9.2, 1.4)
+        return
+    data = ChartData()
+    data.categories = list(cases["scenario"])
+    data.add_series("Custo projetado", [float(value) for value in cases["projected_total_cost"]])
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED,
+        Inches(0.76), Inches(1.55), Inches(8.2), Inches(4.75), data,
+    ).chart
+    chart.has_legend = False
+    chart.value_axis.has_major_gridlines = True
+    chart.plots[0].has_data_labels = True
+    chart.plots[0].data_labels.position = XL_DATA_LABEL_POSITION.OUTSIDE_END
+    chart.plots[0].data_labels.number_format = "#,##0"
+    chart.series[0].format.fill.solid()
+    chart.series[0].format.fill.fore_color.rgb = COLOR_PRIMARY
+    chart.series[0].format.line.color.rgb = COLOR_PRIMARY
+    _set_chart_fonts(chart)
+    base = cases.iloc[0]
+    coverage = _coverage_metric(coverage_df, "OCI priced scope coverage")
+    text = (
+        f"Baseline pre-tax: {float(base['baseline_pre_tax']):,.2f} USD\n"
+        f"Escopo precificado: {coverage:.1f}%\n"
+        f"Carry-forward sem preco OCI: {float(base['unpriced_carry_forward']):,.2f} USD\n\n"
+        "Precos PAYG publicos e versionados. Descontos contratuais aparecem apenas como sensibilidade."
+    )
+    _add_side_note(slide, text, 9.25, 1.55, 3.1, 3.55, body_size=12)
+
+
+def _add_savings_by_service_slide(
+    presentation: Presentation,
+    savings_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Saving por tipo de servico", slide_number)
+    savings = savings_df.copy() if savings_df is not None else pd.DataFrame()
+    if savings.empty:
+        _add_insight_box(slide, "Nao ha workloads com preco OCI auditavel para comparacao.", 0.76, 1.8, 8.8, 1.4)
+        return
+    savings = savings.sort_values("source_pre_tax_cost", ascending=False).head(8)
+    data = ChartData()
+    data.categories = list(savings["workload_segment"])
+    data.add_series("Origem pre-tax", [float(value) for value in savings["source_pre_tax_cost"]])
+    data.add_series("OCI estimado", [float(value) for value in savings["oci_estimated_cost"]])
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.BAR_CLUSTERED,
+        Inches(0.76), Inches(1.55), Inches(8.5), Inches(4.9), data,
+    ).chart
+    chart.has_legend = True
+    chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+    chart.value_axis.has_major_gridlines = True
+    chart.series[0].format.fill.solid()
+    chart.series[0].format.fill.fore_color.rgb = RGBColor(139, 133, 128)
+    chart.series[1].format.fill.solid()
+    chart.series[1].format.fill.fore_color.rgb = COLOR_PRIMARY
+    _set_chart_fonts(chart)
+    best = savings.sort_values("savings_value", ascending=False).iloc[0]
+    worst = savings.sort_values("savings_value", ascending=True).iloc[0]
+    note = (
+        f"Maior saving: {best['workload_segment']} ({float(best['savings_pct']):+.1f}%).\n\n"
+        f"Maior pressao de custo: {worst['workload_segment']} ({float(worst['savings_pct']):+.1f}%).\n\n"
+        "Valores negativos indicam custo OCI superior no cenario de capacidade equivalente."
+    )
+    _add_side_note(slide, note, 9.5, 1.7, 2.85, 3.45, body_size=12)
+
+
+def _add_savings_waterfall_slide(
+    presentation: Presentation,
+    waterfall_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Contribuicao para o business case", slide_number)
+    waterfall = waterfall_df.copy() if waterfall_df is not None else pd.DataFrame()
+    if waterfall.empty:
+        _add_insight_box(slide, "Nao ha componentes precificados para decompor o business case.", 0.76, 1.8, 8.8, 1.4)
+        return
+    deltas = waterfall[waterfall["type"].eq("delta")].copy()
+    deltas["absolute_impact"] = deltas["amount"].abs()
+    deltas = deltas.sort_values("absolute_impact", ascending=False).head(6).sort_values("amount")
+    values = [float(value) for value in deltas["amount"]]
+    data = ChartData()
+    data.categories = list(deltas["step"])
+    data.add_series("Impacto versus origem", values)
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.BAR_CLUSTERED,
+        Inches(0.76), Inches(1.55), Inches(9.0), Inches(4.9), data,
+    ).chart
+    chart.has_legend = False
+    chart.value_axis.has_major_gridlines = True
+    axis_span = max(values) - min(values)
+    raw_step = max(axis_span / 7.0, 1.0)
+    magnitude = 10 ** math.floor(math.log10(raw_step))
+    axis_step = math.ceil(raw_step / magnitude) * magnitude
+    axis_minimum = math.floor(min(min(values), 0.0) / axis_step) * axis_step
+    axis_maximum = math.ceil(max(max(values), 0.0) / axis_step) * axis_step
+    chart.value_axis.minimum_scale = axis_minimum
+    chart.value_axis.maximum_scale = axis_maximum
+    chart.value_axis.major_unit = axis_step
+    chart.value_axis.tick_labels.number_format = "#,##0"
+    chart.value_axis.crosses_at = 0.0
+    chart.category_axis.format.line.color.rgb = COLOR_TEXT
+    chart.category_axis.format.line.width = Pt(1.25)
+    chart.category_axis.tick_label_position = XL_TICK_LABEL_POSITION.LOW
+    chart.plots[0].has_data_labels = True
+    chart.plots[0].data_labels.position = XL_DATA_LABEL_POSITION.OUTSIDE_END
+    chart.plots[0].data_labels.number_format = "#,##0"
+    series = chart.series[0]
+    series.invert_if_negative = False
+    series.format.fill.solid()
+    series.format.fill.fore_color.rgb = RGBColor(124, 151, 88)
+    series.format.line.color.rgb = RGBColor(124, 151, 88)
+    for index, point in enumerate(series.points):
+        value = float(deltas.iloc[index]["amount"])
+        if value <= 0:
+            continue
+        point.format.fill.solid()
+        point.format.fill.fore_color.rgb = COLOR_PRIMARY
+        point.format.line.color.rgb = COLOR_PRIMARY
+    _set_chart_fonts(chart)
+    baseline = float(waterfall.iloc[0]["amount"])
+    result = float(waterfall.iloc[-1]["amount"])
+    delta = result - baseline
+    text = (
+        f"Baseline: {baseline:,.2f} USD\n"
+        f"Resultado: {result:,.2f} USD\n"
+        f"Variacao: {delta:+,.2f} USD\n\n"
+        "Verde reduz o custo. Vermelho aumenta o custo."
+    )
+    _add_side_note(slide, text, 10.0, 1.75, 2.4, 2.9, body_size=12)
+
+
+def _add_scenario_recommendation_slide(
+    presentation: Presentation,
+    sensitivity_df: pd.DataFrame | None,
+    business_case_df: pd.DataFrame | None,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint_slide(slide)
+    _add_standard_frame(slide, "Cenarios e recomendacao", slide_number)
+    sensitivity = sensitivity_df.copy() if sensitivity_df is not None else pd.DataFrame()
+    cases = business_case_df.copy() if business_case_df is not None else pd.DataFrame()
+    if sensitivity.empty:
+        _add_insight_box(slide, "Nao ha workload GPU precificado para executar a sensibilidade.", 0.76, 1.8, 8.8, 1.4)
+        return
+    data = ChartData()
+    data.categories = [f"{int(value)}%" for value in sensitivity["gpu_capacity_reduction_pct"]]
+    data.add_series("Custo projetado", [float(value) for value in sensitivity["projected_total_cost"]])
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.LINE_MARKERS,
+        Inches(0.76), Inches(1.55), Inches(8.2), Inches(4.8), data,
+    ).chart
+    chart.has_legend = False
+    chart.value_axis.has_major_gridlines = True
+    chart.plots[0].has_data_labels = True
+    chart.plots[0].data_labels.position = XL_DATA_LABEL_POSITION.ABOVE
+    chart.plots[0].data_labels.number_format = "#,##0"
+    chart.series[0].format.line.color.rgb = COLOR_PRIMARY
+    _set_chart_fonts(chart)
+    break_even = sensitivity[sensitivity["savings_value"].ge(0)]
+    if not break_even.empty:
+        reduction = float(break_even.iloc[0]["gpu_capacity_reduction_pct"])
+        threshold = f"Break-even aparece a partir de {reduction:.0f}% de reducao da capacidade GPU."
+    else:
+        threshold = "A faixa testada nao atinge break-even."
+    retain = cases[cases["scenario"].eq("Retain source GPU")] if not cases.empty else pd.DataFrame()
+    retain_text = ""
+    if not retain.empty:
+        retain_text = f"Retencao temporaria de GPU: economia de {float(retain.iloc[0]['savings_pct']):.1f}% versus o baseline.\n\n"
+    note = (
+        retain_text
+        + threshold
+        + "\n\nMigrar primeiro workloads nao GPU. Validar ocupacao, concorrencia e benchmark GPU antes da conversao. Aplicar preco contratual somente apos cotacao."
+    )
+    _add_side_note(slide, note, 9.25, 1.55, 3.15, 4.15, body_size=12)
+
+
+def _finops_metric(dataframe: pd.DataFrame, metric: str) -> float:
+    if dataframe is None or dataframe.empty:
+        return 0.0
+    match = dataframe.loc[dataframe["metric"].eq(metric), "value"]
+    return float(match.iloc[0]) if not match.empty else 0.0
+
+
+def _coverage_metric(dataframe: pd.DataFrame | None, metric: str) -> float:
+    if dataframe is None or dataframe.empty:
+        return 0.0
+    match = dataframe.loc[dataframe["metric"].eq(metric), "coverage_pct"]
+    return float(match.iloc[0]) if not match.empty else 0.0
