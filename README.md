@@ -50,6 +50,16 @@ $env:GEMINI_API_KEY="sua_chave_google_ai_studio"
 ```
 
 Se `GEMINI_API_KEY` nao estiver definida, a aplicacao gera um fallback local sem presumir percentuais de economia, ROI ou payback. O business case deterministico continua disponivel nas abas e slides FinOps.
+### Anonimizacao obrigatoria do payload LLM
+
+A aplicacao nunca envia o arquivo de billing bruto nem suas linhas individuais ao Gemini. Antes da
+chamada externa, o payload e reduzido a agregados de custo, uso, servicos, regioes e mapeamentos OCI.
+Campos de conta, projeto, subscription, tenant, invoice, recurso, tags e nome do arquivo recebem
+aliases SHA-256 estaveis. E-mails, UUIDs, ARNs, caminhos de recursos AWS/Azure/GCP, enderecos IP,
+billing IDs e sequencias numericas longas sao redigidos dos textos.
+
+A aba `LLM_Resumo` registra `payload_anonymized=true` e `payload_scope=aggregated_only` para
+auditoria. A anonimizacao e obrigatoria e nao possui opcao de desativacao pela CLI ou pela Web.
 
 ### Configuracao via arquivo `.env` (CLI e Web)
 
@@ -321,6 +331,8 @@ Slides incluidos:
 - participacao percentual por servico
 - top regioes por custo
 - matriz de complexidade de migracao dos top servicos por custo (score 1-5)
+  - em GCP Cost table, os rotulos usam `Service Description`; o `Service ID` permanece disponivel nos dados tecnicos
+  - em AWS Billing PDF, os rotulos continuam usando `product_code`
 - performance estimada de CPU para OCI X9, E5 e E6, quando houver shape comparavel
 - dimensionamento e part numbers OCI, com quantidades, confianca e premissas
 - mapeamento consolidado AWS -> OCI
@@ -388,6 +400,9 @@ Regras de integridade:
 - a cobertura de custo e a confianca acompanham o resultado
 - poucos samples no PassMark reduzem a confianca
 - CPU nao representa memoria, NUMA, rede, storage, GPU ou escalabilidade multicore
+- para GCP N2, o baseline usa Cascade Lake como plataforma representativa; N2 tambem pode operar em Ice Lake
+- para GCP E2, o baseline conservador usa AMD Milan; E2 tambem pode operar em Intel Broadwell
+- inferencias N2/E2 recebem confianca baixa e exigem confirmacao do processador real no inventario ou guest OS
 
 Os processadores OCI de referencia sao confirmados na documentacao de Compute Shapes: X9 (`Intel Xeon Platinum 8358`), E5 (`AMD EPYC 9J14`) e E6 (`AMD EPYC 9J45`). Os benchmarks devem ser revisados periodicamente porque os valores do PassMark mudam com novos samples.
 
@@ -401,7 +416,9 @@ Fontes:
 
 ## Dimensionamento e part numbers OCI
 
-A aplicacao gera uma Bill of Materials tecnica quando o billing possui metricas auditaveis de consumo. A primeira versao detalhada cobre AWS Invoice CSV e utiliza:
+A aplicacao gera uma Bill of Materials tecnica quando o billing possui metricas auditaveis de consumo.
+
+Para AWS Invoice CSV, utiliza:
 
 - horas e capacidade dos shapes EC2 para OCPU-hora, GB-hora e GPU-hora
 - EBS gp2/gp3 para Block Volume em GB-mes e VPU-GB-mes
@@ -409,11 +426,20 @@ A aplicacao gera uma Bill of Materials tecnica quando o billing possui metricas 
 - EFS para File Storage
 - trafego de saida em GB e horas de Load Balancer
 
+Para GCP Cost table CSV, utiliza SKU description, Usage amount e Usage unit para converter:
+
+- core-hours x86 de familias N1/N2/N2D/N4/E2/C2/C3/C4/M/H/Z em OCPU-hora E5
+- memoria provisionada em GB-hora E5
+- Balanced Persistent Disk em Block Volume e 10 VPU por GB-mes
+- Standard/Archive Cloud Storage e operacoes Class A/B
+- Cloud Filestore em File Storage
+- Internet Data Transfer Out e horas de Load Balancer Forwarding Rule
+
 Regras de integridade:
 
 - a BoM representa o cenario `Capacity equivalent`; nao aplica rightsizing por utilizacao
 - para x86, 1 OCPU OCI equivale a 2 vCPUs de origem; para Arm/Ampere A1, 1 OCPU equivale a 1 vCPU de origem
-- cobrancas de reserva, Savings Plans e `HeavyUsage` nao viram capacidade para evitar dupla contagem
+- cobrancas de reserva, Savings Plans, `HeavyUsage` e GCP Commitments nao viram capacidade para evitar dupla contagem
 - a aba `OCI_BoM` permanece tecnica; a precificacao ocorre separadamente em `OCI_Priced_BoM` usando catalogo PAYG versionado
 - servicos gerenciados, tiers proprietarios e linhas sem metrica suficiente ficam em `OCI_BoM_Review`
 - cada linha inclui confianca, premissa, origem do consumo e versao do catalogo OCI
@@ -428,7 +454,7 @@ A fonte dos part numbers e a API publica do OCI Price List. O snapshot incluido 
 - https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?currencyCode=USD
 - https://www.oracle.com/cloud/price-list/
 
-Azure e GCP continuam gerando a fila de revisao quando o export nao fornece uma regra quantitativa auditavel. Novos shapes e servicos devem ser adicionados aos catalogos somente com especificacoes verificadas.
+Azure continua gerando a fila de revisao quando o export nao fornece uma regra quantitativa auditavel. No GCP, commitments, servicos gerenciados, snapshots, image storage, tiers proprietarios e SKUs sem equivalencia segura permanecem em OCI_BoM_Review. Novos shapes e servicos devem ser adicionados somente com especificacoes verificadas.
 ## Analise FinOps deterministica - fases 1 e 2
 
 A fase 1 usa apenas o billing normalizado para gerar baseline auditavel, categorias, tarifas efetivas e cobertura dos dados. Impostos, creditos e custos sem granularidade permanecem separados.
@@ -464,10 +490,3 @@ Quando habilitada, o deck inclui slides adicionais com:
 - adicionar suporte ao GCP BigQuery Billing Export detalhado
 - permitir escolha de provedor LLM e endpoint via UI
 - enriquecer parser PDF AWS para mais variacoes de layout/idioma
-
-
-
-
-
-
-

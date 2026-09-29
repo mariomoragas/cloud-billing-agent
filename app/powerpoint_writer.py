@@ -675,12 +675,33 @@ def _add_processor_performance_slide(
     processor_comparison_df: pd.DataFrame | None,
     slide_number: int,
 ) -> None:
+    source_cloud = ""
+    if (
+        processor_comparison_df is not None
+        and not processor_comparison_df.empty
+        and "source_cloud" in processor_comparison_df.columns
+    ):
+        source_cloud = str(processor_comparison_df.iloc[0]["source_cloud"]).strip()
+    elif (
+        processor_detail_df is not None
+        and not processor_detail_df.empty
+        and "cloud" in processor_detail_df.columns
+    ):
+        source_cloud = str(processor_detail_df.iloc[0]["cloud"]).strip()
+    source_label = {
+        "aws": "AWS",
+        "azure": "Azure",
+        "gcp": "GCP",
+    }.get(source_cloud.lower(), "Origem")
+
     slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
-    _add_standard_frame(slide, "Performance Estimada de CPU", slide_number)
+    _add_standard_frame(
+        slide, f"Performance Estimada de CPU - {source_label} x OCI", slide_number
+    )
     _add_subtitle(
         slide,
-        "PassMark Single Thread: shapes identificados no billing versus OCI X9, E5 e E6",
+        f"PassMark Single Thread: {source_label} identificado no billing versus OCI X9, E5 e E6",
         0.76,
         1.18,
         8.7,
@@ -710,7 +731,7 @@ def _add_processor_performance_slide(
 
     comparison = processor_comparison_df.copy()
     source_score = float(comparison.iloc[0]["source_weighted_single_thread_mark"])
-    labels = ["Origem"] + [
+    labels = [f"{source_label} (estimado)"] + [
         f"OCI {str(value)}" for value in comparison["target_shape_family"].tolist()
     ]
     scores = [source_score] + [
@@ -784,10 +805,10 @@ def _add_processor_performance_slide(
         comparable = processor_detail_df[
             processor_detail_df["comparison_status"].eq("Comparable single-thread benchmark")
         ].sort_values("source_cost", ascending=False)
-        shapes = [str(value) for value in comparable["source_shape"].head(3).tolist()]
+        shapes = [str(value).upper() for value in comparable["source_shape"].head(3).tolist()]
         if shapes:
             shape_paragraph = frame.add_paragraph()
-            shape_paragraph.text = "Shapes principais: " + ", ".join(shapes)
+            shape_paragraph.text = f"Familias {source_label}: " + ", ".join(shapes)
             _style_paragraph(shape_paragraph, bold=False, size=11, color=_rgb_tuple(COLOR_MUTED))
 
     caveat = frame.add_paragraph()
@@ -803,8 +824,8 @@ def _add_processor_performance_slide(
     _configure_text_frame(source_box.text_frame, margin_left=0.01, margin_right=0.01)
     source = source_box.text_frame.paragraphs[0]
     source.text = (
-        "Fontes: PassMark CPU Benchmark (consulta registrada no Excel) e OCI Compute Shapes. "
-        "Modelos inferidos por familia; validar no inventario/guest OS."
+        "Fontes: PassMark CPU Benchmark, Google Cloud CPU Platforms e OCI Compute Shapes. "
+        "Modelos GCP inferidos por familia; validar CPU real no inventario/guest OS."
     )
     _style_paragraph(source, bold=False, size=8, color=_rgb_tuple(COLOR_MUTED))
 
@@ -1490,7 +1511,9 @@ def _build_complexity_points(oci_mapping_df: pd.DataFrame, top_n: int = 10) -> p
 
     service = working.get("service_name_original", pd.Series([""] * len(working))).fillna("").astype(str).str.strip()
     product = working.get("primary_product_code", pd.Series([""] * len(working))).fillna("").astype(str).str.strip()
-    working["label"] = product.where(product != "", service).replace("", "UNSPECIFIED")
+    cloud = working.get("cloud", pd.Series([""] * len(working))).fillna("").astype(str).str.strip().str.lower()
+    default_label = product.where(product != "", service)
+    working["label"] = default_label.where(cloud != "gcp", service).replace("", "UNSPECIFIED")
     working["total_cost"] = pd.to_numeric(working.get("total_cost", 0.0), errors="coerce").fillna(0.0)
     working["complexity_score"] = (
         pd.to_numeric(working.get("complexity_score", 2), errors="coerce")
@@ -1797,6 +1820,22 @@ def _add_savings_waterfall_slide(
         _add_insight_box(slide, "Nao ha componentes precificados para decompor o business case.", 0.76, 1.8, 8.8, 1.4)
         return
     deltas = waterfall[waterfall["type"].eq("delta")].copy()
+    deltas = deltas[deltas["amount"].abs().gt(0.005)]
+    if deltas.empty:
+        baseline = float(waterfall.iloc[0]["amount"])
+        result = float(waterfall.iloc[-1]["amount"])
+        _add_insight_box(
+            slide,
+            (
+                "Nao ha variacoes por workload para exibir no grafico. "
+                f"Baseline: {baseline:,.2f} USD | Resultado: {result:,.2f} USD."
+            ),
+            0.76,
+            1.8,
+            9.2,
+            1.4,
+        )
+        return
     deltas["absolute_impact"] = deltas["amount"].abs()
     deltas = deltas.sort_values("absolute_impact", ascending=False).head(6).sort_values("amount")
     values = [float(value) for value in deltas["amount"]]
@@ -1920,8 +1959,3 @@ def _coverage_metric(dataframe: pd.DataFrame | None, metric: str) -> float:
         return 0.0
     match = dataframe.loc[dataframe["metric"].eq(metric), "coverage_pct"]
     return float(match.iloc[0]) if not match.empty else 0.0
-
-
-
-
-

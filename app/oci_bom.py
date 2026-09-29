@@ -73,6 +73,7 @@ def build_oci_bom(
         "product_code",
         "service_name_original",
         "sku",
+        "sku_id",
         "usage_type",
         "usage_unit",
         "region",
@@ -81,6 +82,9 @@ def build_oci_bom(
         if column not in working.columns:
             working[column] = ""
         working[column] = working[column].fillna("").astype(str).str.strip()
+    working["usage_type"] = working["usage_type"].where(
+        working["usage_type"].ne(""), working["sku"]
+    )
     for column in ("usage_quantity", "cost"):
         if column not in working.columns:
             working[column] = 0.0
@@ -117,6 +121,18 @@ def build_oci_bom(
             _build_aws_file_storage_rows,
             _build_aws_data_transfer_rows,
             _build_aws_load_balancer_rows,
+        ):
+            rows, matched = builder(working, sku_by_profile)
+            bom_rows.extend(rows)
+            converted_rows.update(matched)
+    elif cloud == "gcp":
+        for builder in (
+            _build_gcp_compute_rows,
+            _build_gcp_block_storage_rows,
+            _build_gcp_object_storage_rows,
+            _build_gcp_file_storage_rows,
+            _build_gcp_data_transfer_rows,
+            _build_gcp_load_balancer_rows,
         ):
             rows, matched = builder(working, sku_by_profile)
             bom_rows.extend(rows)
@@ -258,6 +274,240 @@ def _build_aws_compute_rows(
 
     return rows, matched, seen, covered, unresolved
 
+
+GCP_X86_FAMILY_PATTERN = r"(?:N1|N2|N2D|N4|E2|C2|C2D|C3|C3D|C4|M1|M2|M3|M4|H3|Z3)"
+
+
+def _build_gcp_compute_rows(
+    df: pd.DataFrame, sku_by_profile: dict[str, dict[str, str]]
+) -> tuple[list[dict[str, object]], set[int]]:
+    service = df["service_name_original"].str.lower().eq("compute engine")
+    unit = df["usage_unit"].str.lower()
+    positive = df["usage_quantity"].gt(0)
+    rules = [
+        (
+            rf"^{GCP_X86_FAMILY_PATTERN}(?: Custom)? Instance Core running\b",
+            "hour",
+            "compute_e5_ocpu",
+            0.5,
+            "OCPU-hour",
+            "GCP x86 vCPU-hours converted with 1 OCI OCPU = 2 source vCPUs; no utilization-based rightsizing applied.",
+        ),
+        (
+            rf"^{GCP_X86_FAMILY_PATTERN}(?: Custom)? Instance Ram running\b",
+            "gibibyte hour",
+            "compute_e5_memory",
+            1.0,
+            "GB-hour",
+            "GCP provisioned memory converted at equal GB-hours without utilization-based rightsizing.",
+        ),
+    ]
+    rows: list[dict[str, object]] = []
+    matched: set[int] = set()
+    for pattern, expected_unit, profile, factor, target_unit, assumption in rules:
+        mask = (
+            service
+            & positive
+            & unit.eq(expected_unit)
+            & df["usage_type"].str.contains(pattern, case=False, regex=True, na=False)
+        )
+        selected = df.loc[mask].copy()
+        if selected.empty:
+            continue
+        selected["_gcp_family"] = selected["usage_type"].map(_extract_gcp_family)
+        for (_, family), group in selected.groupby(["region", "_gcp_family"], dropna=False):
+            source_quantity = float(group["usage_quantity"].sum())
+            matched.update(group["_source_row"].astype(int).tolist())
+            rows.append(
+                _sku_row(
+                    sku_by_profile,
+                    profile,
+                    quantity=source_quantity * factor,
+                    unit=target_unit,
+                    confidence="High",
+                    assumption=assumption,
+                    **_source_context(
+                        group,
+                        source_shapes=str(family or "").upper(),
+                        source_quantity=source_quantity,
+                    ),
+                )
+            )
+    return rows, matched
+
+
+def _build_gcp_block_storage_rows(
+    df: pd.DataFrame, sku_by_profile: dict[str, dict[str, str]]
+) -> tuple[list[dict[str, object]], set[int]]:
+    mask = (
+        df["service_name_original"].str.lower().eq("compute engine")
+        & df["usage_unit"].str.lower().eq("gibibyte month")
+        & df["usage_quantity"].gt(0)
+        & df["usage_type"].str.contains(
+            r"^Balanced PD Capacity\b", case=False, regex=True, na=False
+        )
+    )
+    rows: list[dict[str, object]] = []
+    matched: set[int] = set()
+    for _, group in df.loc[mask].groupby("region", dropna=False):
+        quantity = float(group["usage_quantity"].sum())
+        matched.update(group["_source_row"].astype(int).tolist())
+        common = _source_context(group, source_quantity=quantity)
+        rows.append(
+            _sku_row(
+                sku_by_profile,
+                "block_storage",
+                quantity=quantity,
+                unit="GB-month",
+                confidence="High",
+                assumption="GCP Balanced Persistent Disk capacity converted at equal GB-month capacity.",
+                **common,
+            )
+        )
+        rows.append(
+            _sku_row(
+                sku_by_profile,
+                "block_vpu",
+                quantity=quantity * 10.0,
+                unit="VPU-GB-month",
+                confidence="Medium",
+                assumption="OCI Balanced performance assumption of 10 VPU per GB; validate IOPS and throughput requirements.",
+                **common,
+            )
+        )
+    return rows, matched
+
+def _build_gcp_object_storage_rows(
+    df: pd.DataFrame, sku_by_profile: dict[str, dict[str, str]]
+) -> tuple[list[dict[str, object]], set[int]]:
+    service = df["service_name_original"].str.lower().eq("cloud storage")
+    positive = df["usage_quantity"].gt(0)
+    rules = [
+        (r"^Standard Storage\b", "gibibyte month", "object_standard", "GB-month", 1.0, "High", "GCP Standard Storage converted at equal GB-month capacity."),
+        (r"^Archive Storage\b", "gibibyte month", "object_archive", "GB-month", 1.0, "Medium", "GCP Archive Storage converted at equal GB-month capacity; retrieval and minimum-duration behavior must be validated."),
+        (r"\bClass [AB] Operations\b", "count", "object_requests", "10K requests", 0.0001, "Medium", "GCP Class A/B operations consolidated into OCI 10,000-request billing units; operation mix must be validated."),
+    ]
+    rows: list[dict[str, object]] = []
+    matched: set[int] = set()
+    for pattern, expected_unit, profile, target_unit, factor, confidence, assumption in rules:
+        mask = (
+            service
+            & positive
+            & df["usage_unit"].str.lower().eq(expected_unit)
+            & df["usage_type"].str.contains(pattern, case=False, regex=True, na=False)
+        )
+        for _, group in df.loc[mask].groupby("region", dropna=False):
+            source_quantity = float(group["usage_quantity"].sum())
+            matched.update(group["_source_row"].astype(int).tolist())
+            rows.append(
+                _sku_row(
+                    sku_by_profile,
+                    profile,
+                    quantity=source_quantity * factor,
+                    unit=target_unit,
+                    confidence=confidence,
+                    assumption=assumption,
+                    **_source_context(group, source_quantity=source_quantity),
+                )
+            )
+    return rows, matched
+
+
+def _build_gcp_file_storage_rows(
+    df: pd.DataFrame, sku_by_profile: dict[str, dict[str, str]]
+) -> tuple[list[dict[str, object]], set[int]]:
+    mask = (
+        df["service_name_original"].str.lower().eq("cloud filestore")
+        & df["usage_unit"].str.lower().eq("gibibyte month")
+        & df["usage_quantity"].gt(0)
+        & df["usage_type"].str.contains(
+            r"^Filestore Capacity\b", case=False, regex=True, na=False
+        )
+    )
+    rows: list[dict[str, object]] = []
+    matched: set[int] = set()
+    for _, group in df.loc[mask].groupby("region", dropna=False):
+        quantity = float(group["usage_quantity"].sum())
+        matched.update(group["_source_row"].astype(int).tolist())
+        rows.append(
+            _sku_row(
+                sku_by_profile,
+                "file_storage",
+                quantity=quantity,
+                unit="GB-month",
+                confidence="Medium",
+                assumption="GCP Filestore capacity converted at equal GB-month capacity; performance tier must be validated.",
+                **_source_context(group, source_quantity=quantity),
+            )
+        )
+    return rows, matched
+
+def _build_gcp_data_transfer_rows(
+    df: pd.DataFrame, sku_by_profile: dict[str, dict[str, str]]
+) -> tuple[list[dict[str, object]], set[int]]:
+    mask = (
+        df["service_name_original"].str.lower().eq("compute engine")
+        & df["usage_unit"].str.lower().eq("gibibyte")
+        & df["usage_quantity"].gt(0)
+        & df["usage_type"].str.contains(
+            r"^Network Internet Data Transfer Out\b", case=False, regex=True, na=False
+        )
+    )
+    rows: list[dict[str, object]] = []
+    matched: set[int] = set()
+    for region, group in df.loc[mask].groupby("region", dropna=False):
+        region = str(region or "").strip().lower()
+        quantity = float(group["usage_quantity"].sum())
+        matched.update(group["_source_row"].astype(int).tolist())
+        south_apac = region.startswith(
+            ("southamerica-", "asia-", "australia-", "africa-", "me-")
+        )
+        profile = "egress_apac_south_america" if south_apac else "egress_na_europe"
+        rows.append(
+            _sku_row(
+                sku_by_profile,
+                profile,
+                quantity=quantity,
+                unit="GB",
+                confidence="High" if region and region != "global" else "Medium",
+                assumption="GCP outbound internet data converted at equal GB using the source-region OCI egress profile; destination and tier must be validated.",
+                **_source_context(group, source_quantity=quantity),
+            )
+        )
+    return rows, matched
+
+
+def _build_gcp_load_balancer_rows(
+    df: pd.DataFrame, sku_by_profile: dict[str, dict[str, str]]
+) -> tuple[list[dict[str, object]], set[int]]:
+    mask = (
+        df["service_name_original"].str.lower().eq("networking")
+        & df["usage_unit"].str.lower().eq("hour")
+        & df["usage_quantity"].gt(0)
+        & df["usage_type"].str.contains(
+            r"^Cloud Load Balancer Forwarding Rule\b",
+            case=False,
+            regex=True,
+            na=False,
+        )
+    )
+    rows: list[dict[str, object]] = []
+    matched: set[int] = set()
+    for _, group in df.loc[mask].groupby("region", dropna=False):
+        quantity = float(group["usage_quantity"].sum())
+        matched.update(group["_source_row"].astype(int).tolist())
+        rows.append(
+            _sku_row(
+                sku_by_profile,
+                "load_balancer_base",
+                quantity=quantity,
+                unit="load-balancer-hour",
+                confidence="Medium",
+                assumption="GCP forwarding-rule hours used as OCI flexible load balancer base hours; bandwidth and topology require validation.",
+                **_source_context(group, source_quantity=quantity),
+            )
+        )
+    return rows, matched
 
 def _build_aws_block_storage_rows(
     df: pd.DataFrame, sku_by_profile: dict[str, dict[str, str]]
@@ -569,10 +819,24 @@ def _build_review_df(
 
 
 def _review_reason(row: pd.Series) -> str:
+    cloud = str(row.get("cloud", "")).lower()
     product = str(row.get("product_code", "")).lower()
     usage = str(row.get("usage_type", ""))
-    if re.search(r"HeavyUsage|SavingsPlan|Reserved", usage, re.IGNORECASE):
+    service = str(row.get("service_name_original", "")).lower()
+    if re.search(r"HeavyUsage|SavingsPlan|Reserved|Commitment", usage, re.IGNORECASE):
         return "Contract or reservation charge excluded from capacity quantities to avoid double counting usage hours."
+    if cloud == "gcp" and service in {
+        "cloud sql",
+        "kubernetes engine",
+        "bigquery",
+        "memorystore",
+        "cloud spanner",
+    }:
+        return "Managed GCP service requires engine, topology, throughput, SLA and HA details before selecting OCI SKUs."
+    if cloud == "gcp" and re.search(
+        r"Snapshot|Image Storage|Early Delete", usage, re.IGNORECASE
+    ):
+        return "GCP storage lifecycle line has snapshot, image or minimum-duration semantics that require target-tier validation."
     if product in {"amazonrds", "amazonneptune", "amazondynamodb", "amazones"}:
         return "Managed data service requires engine, instance class, storage, throughput, SLA and HA topology before selecting OCI SKUs."
     if "natgateway" in usage.lower():
@@ -621,6 +885,11 @@ def _extract_aws_shape(value: str) -> str:
         str(value),
         re.IGNORECASE,
     )
+    return match.group(1).lower() if match else ""
+
+
+def _extract_gcp_family(value: str) -> str:
+    match = re.match(rf"({GCP_X86_FAMILY_PATTERN})\b", str(value), re.IGNORECASE)
     return match.group(1).lower() if match else ""
 
 

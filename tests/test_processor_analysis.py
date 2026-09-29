@@ -93,6 +93,45 @@ class ProcessorAnalysisTests(unittest.TestCase):
         self.assertEqual(result.detail_df.iloc[0]["source_processor_model"], "UNRESOLVED")
         self.assertTrue(result.comparison_df.empty)
 
+    def test_gcp_n2_and_e2_generate_low_confidence_oci_comparison(self) -> None:
+        raw = pd.DataFrame(
+            [
+                {
+                    "cloud": "gcp",
+                    "service_name_original": "Compute Engine",
+                    "sku": "N2 Instance Core running in Sao Paulo",
+                    "usage_quantity": 1000,
+                    "cost": 900,
+                },
+                {
+                    "cloud": "gcp",
+                    "service_name_original": "Compute Engine",
+                    "sku": "E2 Instance Core running in Sao Paulo",
+                    "usage_quantity": 100,
+                    "cost": 100,
+                },
+            ]
+        )
+
+        result = build_processor_analysis(raw)
+
+        self.assertEqual(
+            set(result.detail_df["source_processor_model"]),
+            {"Intel Xeon Gold 6268CL @ 2.80GHz", "AMD EPYC 7B13"},
+        )
+        self.assertEqual(len(result.comparison_df), 3)
+        self.assertTrue(result.comparison_df["source_cloud"].eq("gcp").all())
+        self.assertTrue(result.comparison_df["confidence"].eq("Low").all())
+        self.assertTrue(
+            result.comparison_df["source_processor_models"]
+            .str.contains("Intel Xeon Gold 6268CL")
+            .all()
+        )
+        gains = result.comparison_df.set_index("target_shape_family")[
+            "estimated_gain_pct"
+        ]
+        self.assertGreater(gains["E5"], 20)
+        self.assertGreater(gains["E6"], 45)
     def test_suppresses_gain_when_only_comparable_shapes_have_zero_cost(self) -> None:
         raw = pd.DataFrame(
             [

@@ -34,6 +34,9 @@ DETAIL_COLUMNS = [
 ]
 
 COMPARISON_COLUMNS = [
+    "source_cloud",
+    "source_shape_families",
+    "source_processor_models",
     "target_shape_family",
     "target_processor_model",
     "target_cpu_mark",
@@ -312,6 +315,13 @@ def _build_comparison(detail: pd.DataFrame, benchmarks: pd.DataFrame) -> pd.Data
         weights = pd.Series(1.0, index=valid.index)
 
     source_score = float((valid["single_thread_mark"] * weights).sum() / weights.sum())
+    source_cloud = ", ".join(sorted(valid["cloud"].dropna().astype(str).unique()))
+    source_shape_families = ", ".join(
+        sorted(valid["shape_family"].dropna().astype(str).unique())
+    )
+    source_processor_models = ", ".join(
+        sorted(valid["source_processor_model"].dropna().astype(str).unique())
+    )
     coverage = (valid_cost / candidate_cost * 100.0) if candidate_cost > 0 else 100.0
     mapping_floor = float(valid["mapping_confidence"].min())
     source_sample_floor = int(
@@ -332,6 +342,9 @@ def _build_comparison(detail: pd.DataFrame, benchmarks: pd.DataFrame) -> pd.Data
         )
         rows.append(
             {
+                "source_cloud": source_cloud,
+                "source_shape_families": source_shape_families,
+                "source_processor_models": source_processor_models,
                 "target_shape_family": target["shape_family"],
                 "target_processor_model": target["processor_model"],
                 "target_cpu_mark": float(target["cpu_mark"]),

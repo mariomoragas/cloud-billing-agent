@@ -479,7 +479,17 @@ def _add_processor_performance_chart(workbook, charts_sheet) -> None:
     ).value
     if not isinstance(source_score, (int, float)) or source_score <= 0:
         return
-    data_sheet.append(["Origem (ponderada)", float(source_score)])
+    source_cloud = ""
+    if "source_cloud" in headers:
+        source_cloud = str(
+            source.cell(row=2, column=headers["source_cloud"]).value or ""
+        ).strip()
+    source_label = {
+        "aws": "AWS",
+        "azure": "Azure",
+        "gcp": "GCP",
+    }.get(source_cloud.lower(), "Origem")
+    data_sheet.append([f"{source_label} (estimado)", float(source_score)])
     for row in range(2, source.max_row + 1):
         family = str(
             source.cell(row=row, column=headers["target_shape_family"]).value or ""
@@ -491,7 +501,7 @@ def _add_processor_performance_chart(workbook, charts_sheet) -> None:
     chart = BarChart()
     chart.type = "col"
     chart.style = 10
-    chart.title = "Performance estimada de CPU"
+    chart.title = f"Performance estimada de CPU - {source_label} x OCI"
     chart.y_axis.title = "PassMark Single Thread"
     chart.x_axis.title = "Shape / plataforma"
     chart.height = 9.5

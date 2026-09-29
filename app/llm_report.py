@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -158,6 +159,88 @@ class LLMReportArtifacts:
     error_message: str = ""
 
 
+SENSITIVE_PAYLOAD_FIELDS = {
+    "account_id",
+    "account_name",
+    "billing_account_id",
+    "billing_id",
+    "customer_id",
+    "customer_name",
+    "invoice_number",
+    "linked_account_id",
+    "linked_account_name",
+    "project_id",
+    "project_name",
+    "resource_group",
+    "resource_id",
+    "resource_name",
+    "source_name",
+    "subscription_id",
+    "subscription_name",
+    "tags",
+    "tenant_id",
+    "tenant_name",
+}
+EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+UUID_PATTERN = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b", re.IGNORECASE)
+ARN_PATTERN = re.compile(r"\barn:[^\s,;]+", re.IGNORECASE)
+AZURE_RESOURCE_PATTERN = re.compile(r"/subscriptions/[^\s/]+(?:/[^\s,;]+)*", re.IGNORECASE)
+GCP_RESOURCE_PATTERN = re.compile(r"\bprojects/[^\s/,;]+(?:/[^\s,;]+)*", re.IGNORECASE)
+IPV4_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+BILLING_ID_PATTERN = re.compile(r"\b[A-Z0-9]{4,}(?:-[A-Z0-9]{4,}){2,}\b")
+LONG_NUMBER_PATTERN = re.compile(r"(?<![\d.])\d{10,}(?![\d.])")
+
+
+def _anonymize_llm_payload(payload: dict[str, object]) -> dict[str, object]:
+    anonymized = _anonymize_payload_value(payload)
+    if not isinstance(anonymized, dict):
+        raise TypeError("O payload anonimizado deve permanecer um objeto JSON.")
+    anonymized["anonymization"] = {
+        "enabled": True,
+        "version": "1",
+        "scope": "aggregated_only",
+        "raw_rows_sent": False,
+    }
+    return anonymized
+
+
+def _anonymize_payload_value(value: object, field_name: str = "") -> object:
+    normalized_field = field_name.strip().casefold()
+    if normalized_field in SENSITIVE_PAYLOAD_FIELDS:
+        return _sensitive_alias(normalized_field, value)
+    if isinstance(value, dict):
+        return {
+            str(key): _anonymize_payload_value(item, str(key))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_anonymize_payload_value(item, field_name) for item in value]
+    if isinstance(value, tuple):
+        return [_anonymize_payload_value(item, field_name) for item in value]
+    if isinstance(value, str):
+        return _redact_sensitive_text(value)
+    return value
+
+
+def _sensitive_alias(field_name: str, value: object) -> str:
+    label = re.sub(r"[^A-Z0-9]+", "_", field_name.upper()).strip("_") or "VALUE"
+    if isinstance(value, str) and re.fullmatch(rf"\[{label}_[0-9a-f]{{12}}\]", value):
+        return value
+    serialized = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:12]
+    return f"[{label}_{digest}]"
+
+
+def _redact_sensitive_text(value: str) -> str:
+    redacted = EMAIL_PATTERN.sub("[EMAIL_REDACTED]", value)
+    redacted = UUID_PATTERN.sub("[UUID_REDACTED]", redacted)
+    redacted = ARN_PATTERN.sub("[ARN_REDACTED]", redacted)
+    redacted = AZURE_RESOURCE_PATTERN.sub("[AZURE_RESOURCE_REDACTED]", redacted)
+    redacted = GCP_RESOURCE_PATTERN.sub("[GCP_RESOURCE_REDACTED]", redacted)
+    redacted = IPV4_PATTERN.sub("[IP_REDACTED]", redacted)
+    redacted = BILLING_ID_PATTERN.sub("[BILLING_ID_REDACTED]", redacted)
+    return LONG_NUMBER_PATTERN.sub("[LONG_ID_REDACTED]", redacted)
+
 def build_llm_report_artifacts(
     *,
     raw_df: pd.DataFrame,
@@ -172,7 +255,7 @@ def build_llm_report_artifacts(
     if not raw_df.empty and "currency" in raw_df.columns:
         currency = str(raw_df["currency"].fillna("USD").astype(str).mode().iloc[0])
 
-    payload = _build_payload(
+    raw_payload = _build_payload(
         raw_df=raw_df,
         service_summary_df=service_summary_df,
         region_summary_df=region_summary_df,
@@ -181,6 +264,7 @@ def build_llm_report_artifacts(
         baseline_total=baseline_total,
         currency=currency,
     )
+    payload = _anonymize_llm_payload(raw_payload)
 
     report, request_error = _request_llm_report(payload=payload, llm_model=llm_model)
     error_message = ""
@@ -292,6 +376,7 @@ def _request_llm_report(
     payload: dict[str, object],
     llm_model: str,
 ) -> tuple[dict[str, object] | None, str]:
+    safe_payload = _anonymize_llm_payload(payload)
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         return None, "GEMINI_API_KEY ausente."
@@ -306,7 +391,7 @@ def _request_llm_report(
 
     user_message = (
         "Dados de billing normalizados para análise FinOps/OCI:\n"
-        + json.dumps(payload, ensure_ascii=False, indent=2)
+        + json.dumps(safe_payload, ensure_ascii=False, indent=2)
         + "\n\n"
         + JSON_INSTRUCTION
     )
@@ -543,6 +628,8 @@ def _build_summary_df(
     rows = [
         {"section": "meta", "metric": "analysis_mode", "value": status},
         {"section": "meta", "metric": "analysis_error", "value": error_message},
+        {"section": "meta", "metric": "payload_anonymized", "value": True},
+        {"section": "meta", "metric": "payload_scope", "value": "aggregated_only"},
         {"section": "summary", "metric": "executive_summary", "value": report.get("executive_summary", "")},
         {"section": "baseline", "metric": "current_total_cost", "value": baseline.get("current_total_cost", 0.0)},
         {"section": "baseline", "metric": "currency", "value": baseline.get("currency", "USD")},
@@ -636,3 +723,6 @@ def _mode_or_default(df: pd.DataFrame, column: str, default: str) -> str:
     if series.empty:
         return default
     return str(series.mode().iloc[0])
+
+
+

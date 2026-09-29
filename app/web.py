@@ -600,7 +600,8 @@ def _render_home() -> str:
           e <code>Consumo</code>. Para GCP Cost table, o parser
           ignora os metadados iniciais do export, normaliza valores em BRL/USD e remove linhas de
           totalizacao/impostos da analise por servico. A analise LLM usa <code>GEMINI_API_KEY</code>
-          quando disponivel.
+          quando disponivel e envia somente agregados anonimizados. O arquivo bruto, linhas individuais,
+          nomes de arquivo, contas, projetos, recursos, tags e identificadores nao sao enviados.
         </p>
       </div>
 
@@ -997,3 +998,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

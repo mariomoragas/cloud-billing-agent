@@ -17,4 +17,6 @@ priority,cloud,shape_family,shape_pattern,processor_model,architecture,mapping_c
 320,gcp,N2D Rome,"\bn2d\b.*\brome\b|\brome\b.*\bn2d\b",AMD EPYC 7B12,x86_64,0.80,https://cloud.google.com/compute/docs/cpu-platforms,Representative AMD Rome processor
 330,gcp,C2,"\bc2(?:[- _]|\b)",Intel Xeon Gold 6268CL @ 2.80GHz,x86_64,0.75,https://cloud.google.com/compute/docs/cpu-platforms,Representative Cascade Lake model; verify guest CPU
 340,gcp,N2D,"\bn2d(?:[- _]|\b)",UNRESOLVED,x86_64,0.40,https://cloud.google.com/compute/docs/cpu-platforms,CPU generation not present in billing text
-350,gcp,N2/E2/C3,"\b(?:n2|e2|c3)(?:[- _]|\b)",UNRESOLVED,x86_64,0.35,https://cloud.google.com/compute/docs/cpu-platforms,Machine family alone does not uniquely identify CPU model
+350,gcp,N2,"\bn2(?:[- _]|\b)",Intel Xeon Gold 6268CL @ 2.80GHz,x86_64,0.55,https://cloud.google.com/compute/docs/cpu-platforms,Representative Cascade Lake baseline; N2 can use Cascade Lake or Ice Lake and exact host CPU must be validated
+360,gcp,E2,"\be2(?:[- _]|\b)",AMD EPYC 7B13,x86_64,0.35,https://cloud.google.com/compute/docs/cpu-platforms,Conservative representative Milan baseline; E2 can use Intel Broadwell or AMD Milan and exact host CPU must be validated
+370,gcp,C3,"\bc3(?:[- _]|\b)",UNRESOLVED,x86_64,0.40,https://cloud.google.com/compute/docs/cpu-platforms,Sapphire Rapids family detected but no verified PassMark record is present in the versioned catalog

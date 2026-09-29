@@ -6,6 +6,7 @@ from app.powerpoint_writer import (
     _add_section_slide,
     _add_title_slide,
     _blank_slide_layout,
+    _build_complexity_points,
     _configure_presentation_sections,
     _create_presentation,
     _find_slide_layout,
@@ -65,3 +66,30 @@ def test_sections_move_analysis_to_commercial_and_close_in_final(monkeypatch):
     )
     sections = [(section.get("name"), len(list(section[0]))) for section in section_list]
     assert sections == [("Default Section", 3), ("Comercial", 1), ("Final", 1)]
+
+def test_complexity_labels_use_gcp_description_and_aws_product_code():
+    mapping = pd.DataFrame(
+        [
+            {
+                "cloud": "gcp",
+                "service_name_original": "Compute Engine",
+                "primary_product_code": "6F81-5844-456A",
+                "oci_service": "OCI Compute",
+                "total_cost": 100.0,
+                "complexity_score": 1,
+            },
+            {
+                "cloud": "aws",
+                "service_name_original": "Amazon Elastic Compute Cloud",
+                "primary_product_code": "AmazonEC2",
+                "oci_service": "OCI Compute",
+                "total_cost": 80.0,
+                "complexity_score": 1,
+            },
+        ]
+    )
+
+    points = _build_complexity_points(mapping, top_n=10)
+
+    assert set(points["label"]) == {"Compute Engine", "AmazonEC2"}
+    assert "6F81-5844-456A" not in set(points["label"])
