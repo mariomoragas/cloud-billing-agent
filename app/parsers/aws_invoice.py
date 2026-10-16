@@ -54,6 +54,13 @@ def load_aws_invoice_csv(csv_path: Path) -> ParserResult:
     raw_df = pd.read_csv(csv_path, low_memory=False)
     _validate_required_columns(raw_df)
     raw_cost_total = pd.to_numeric(raw_df["TotalCost"], errors="coerce").fillna(0.0).sum()
+    client_ref = _optional(raw_df, "ClientRef")
+    linked_account_id = _optional_with_fallback(
+        raw_df, "LinkedAccountId", "ClientRef"
+    )
+    linked_account_name = _optional_with_fallback(
+        raw_df, "LinkedAccountName", "ClientRef"
+    )
 
     normalized = pd.DataFrame(
         {
@@ -74,10 +81,11 @@ def load_aws_invoice_csv(csv_path: Path) -> ParserResult:
             "operation": raw_df["Operation"].fillna("") if "Operation" in raw_df.columns else "",
             "record_type": raw_df["RecordType"].fillna(""),
             "line_item_type": raw_df["RecordType"].fillna(""),
+            "client_ref": client_ref,
             "payer_account_id": _optional(raw_df, "PayerAccountId"),
             "payer_account_name": _optional(raw_df, "PayerAccountName"),
-            "linked_account_id": _optional(raw_df, "LinkedAccountId"),
-            "linked_account_name": _optional(raw_df, "LinkedAccountName"),
+            "linked_account_id": linked_account_id,
+            "linked_account_name": linked_account_name,
             "seller_of_record": _optional(raw_df, "SellerOfRecord"),
             "item_description": _optional(raw_df, "ItemDescription"),
             "cost_before_tax": pd.to_numeric(
@@ -206,6 +214,9 @@ def _filter_missing_linked_account_name(normalized_df: pd.DataFrame) -> pd.DataF
 
 
 def _deduplicate_payer_linked_rows(normalized_df: pd.DataFrame) -> pd.DataFrame:
+    if normalized_df.empty:
+        return normalized_df.copy()
+
     dedupe_key = [
         "invoice_id",
         "service_name_original",
@@ -256,6 +267,14 @@ def _optional(raw_df: pd.DataFrame, column: str) -> pd.Series:
     if column in raw_df.columns:
         return raw_df[column]
     return pd.Series([""] * len(raw_df))
+
+
+def _optional_with_fallback(
+    raw_df: pd.DataFrame, primary: str, fallback: str
+) -> pd.Series:
+    primary_values = _optional(raw_df, primary).fillna("").astype(str)
+    fallback_values = _optional(raw_df, fallback).fillna("").astype(str)
+    return primary_values.where(primary_values.str.strip().ne(""), fallback_values)
 
 
 def _build_data_quality(

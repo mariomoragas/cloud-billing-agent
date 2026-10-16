@@ -208,6 +208,7 @@ O parser dedicado de invoice AWS foi ajustado para colunas reais como:
 - `RecordType`
 - `PayerAccountName`
 - `LinkedAccountName`
+- `ClientRef` (fallback para identificar e separar clientes)
 - `ProductCode`
 - `ProductName`
 - `UsageType`
@@ -224,7 +225,8 @@ Regras aplicadas:
 - usa `TotalCost` como custo principal para refletir o valor faturado
 - preserva `CostBeforeTax`, `TaxAmount` e `Credits` para analise financeira
 - filtra para linhas detalhadas `LinkedLineItem` e `PayerLineItem`
-- remove por padrao qualquer linha sem `LinkedAccountName`
+- usa `ClientRef` como identificador e nome da conta vinculada quando `LinkedAccountId`/`LinkedAccountName` nao estao presentes
+- remove por padrao linhas sem identificacao de conta vinculada nem `ClientRef`
 - infere regiao a partir do prefixo de `UsageType` quando possivel
 - infere unidade de uso com base em `UsageType` e `ItemDescription`
 
@@ -490,3 +492,4 @@ Quando habilitada, o deck inclui slides adicionais com:
 - adicionar suporte ao GCP BigQuery Billing Export detalhado
 - permitir escolha de provedor LLM e endpoint via UI
 - enriquecer parser PDF AWS para mais variacoes de layout/idioma
+

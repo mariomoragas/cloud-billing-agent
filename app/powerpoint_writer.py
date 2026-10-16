@@ -596,11 +596,19 @@ def _add_migration_complexity_slide(
     p_x.text = "Prazo da Migracao"
     _style_paragraph(p_x, bold=False, size=12, color=_rgb_tuple(COLOR_MUTED))
 
-    y_axis = slide.shapes.add_textbox(Inches(panel_left - 0.65), Inches(panel_top + 1.6), Inches(0.6), Inches(2.0))
+    # PowerPoint rotates around the shape center, so use a horizontal box
+    # sized for the full label before rotating it into the vertical axis.
+    y_axis = slide.shapes.add_textbox(
+        Inches(panel_left - 1.135),
+        Inches(panel_top + 2.385),
+        Inches(1.75),
+        Inches(0.38),
+    )
+    y_axis.rotation = 270
     _configure_text_frame(y_axis.text_frame, margin_left=0.01, margin_right=0.01)
     p_y = y_axis.text_frame.paragraphs[0]
     p_y.text = "Custo da Migracao"
-    _style_paragraph(p_y, bold=False, size=11, color=_rgb_tuple(COLOR_MUTED))
+    _style_paragraph(p_y, bold=False, size=12, color=_rgb_tuple(COLOR_MUTED))
 
     for index, row in points.iterrows():
         rank = float(index + 1)
@@ -630,21 +638,28 @@ def _add_migration_complexity_slide(
         b.text = str(int(complexity))
         _style_paragraph(b, bold=True, size=11, color=(255, 255, 255))
 
+        tag_width = 1.35
+        tag_left = max(
+            panel_left + 0.02,
+            min(panel_left + panel_width - tag_width - 0.02, x + 0.21 - (tag_width / 2)),
+        )
+        tag_base_top = panel_top + 0.60 + ((5.0 - complexity) * 0.925)
+        tag_top = tag_base_top + (0.32 if index % 2 == 0 else 0.0)
         tag = slide.shapes.add_shape(
             MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
-            Inches(max(panel_left + 0.05, x - 0.92)),
-            Inches(y + 0.44),
-            Inches(1.85),
-            Inches(0.36),
+            Inches(tag_left),
+            Inches(tag_top),
+            Inches(tag_width),
+            Inches(0.42),
         )
         tag.fill.solid()
         tag.fill.fore_color.rgb = _complexity_tag_color(int(complexity))
         tag.line.fill.background()
         tag_tf = tag.text_frame
-        _configure_text_frame(tag_tf, margin_left=0.03, margin_right=0.03)
+        _configure_text_frame(tag_tf, margin_left=0.01, margin_right=0.01, margin_top=0.01, margin_bottom=0.01)
         t = tag_tf.paragraphs[0]
         t.text = label[:30]
-        _style_paragraph(t, bold=False, size=10, color=_rgb_tuple(COLOR_TEXT))
+        _style_paragraph(t, bold=False, size=9, color=_rgb_tuple(COLOR_TEXT))
 
     low_complexity = points[points["complexity_score"] <= 2]
     low_count = int(len(low_complexity))
@@ -824,8 +839,8 @@ def _add_processor_performance_slide(
     _configure_text_frame(source_box.text_frame, margin_left=0.01, margin_right=0.01)
     source = source_box.text_frame.paragraphs[0]
     source.text = (
-        "Fontes: PassMark CPU Benchmark, Google Cloud CPU Platforms e OCI Compute Shapes. "
-        "Modelos GCP inferidos por familia; validar CPU real no inventario/guest OS."
+        f"Fontes: PassMark CPU Benchmark, documentacao de CPU {source_label} e OCI Compute Shapes. "
+        f"Modelos {source_label} inferidos por familia; validar CPU real no inventario/guest OS."
     )
     _style_paragraph(source, bold=False, size=8, color=_rgb_tuple(COLOR_MUTED))
 
@@ -1854,6 +1869,10 @@ def _add_savings_waterfall_slide(
     axis_step = math.ceil(raw_step / magnitude) * magnitude
     axis_minimum = math.floor(min(min(values), 0.0) / axis_step) * axis_step
     axis_maximum = math.ceil(max(max(values), 0.0) / axis_step) * axis_step
+    if min(values) < 0:
+        axis_minimum -= axis_step
+    if max(values) > 0:
+        axis_maximum += axis_step
     chart.value_axis.minimum_scale = axis_minimum
     chart.value_axis.maximum_scale = axis_maximum
     chart.value_axis.major_unit = axis_step
@@ -1959,3 +1978,4 @@ def _coverage_metric(dataframe: pd.DataFrame | None, metric: str) -> float:
         return 0.0
     match = dataframe.loc[dataframe["metric"].eq(metric), "coverage_pct"]
     return float(match.iloc[0]) if not match.empty else 0.0
+
