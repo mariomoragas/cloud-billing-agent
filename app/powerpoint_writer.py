@@ -74,6 +74,7 @@ def write_powerpoint_report(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     presentation = _create_presentation()
+    report_currency = _mode_or_default(raw_df, "currency", "USD")
     slide_number = 1
     _add_title_slide(presentation, raw_df, report_name, company_name, project_name)
     slide_number += 1
@@ -136,7 +137,7 @@ def write_powerpoint_report(
 
     _add_savings_by_service_slide(presentation, savings_by_service_df, slide_number)
     slide_number += 1
-    _add_savings_waterfall_slide(presentation, savings_waterfall_df, slide_number)
+    _add_savings_waterfall_slide(presentation, savings_waterfall_df, slide_number, report_currency)
     slide_number += 1
     _add_scenario_recommendation_slide(presentation, sensitivity_df, business_case_df, slide_number)
     slide_number += 1
@@ -1826,6 +1827,7 @@ def _add_savings_waterfall_slide(
     presentation: Presentation,
     waterfall_df: pd.DataFrame | None,
     slide_number: int,
+    currency: str = "USD",
 ) -> None:
     slide = presentation.slides.add_slide(_blank_slide_layout(presentation))
     _paint_slide(slide)
@@ -1843,7 +1845,7 @@ def _add_savings_waterfall_slide(
             slide,
             (
                 "Nao ha variacoes por workload para exibir no grafico. "
-                f"Baseline: {baseline:,.2f} USD | Resultado: {result:,.2f} USD."
+                f"Baseline: {baseline:,.2f} {currency} | Resultado: {result:,.2f} {currency}."
             ),
             0.76,
             1.8,
@@ -1901,9 +1903,9 @@ def _add_savings_waterfall_slide(
     result = float(waterfall.iloc[-1]["amount"])
     delta = result - baseline
     text = (
-        f"Baseline: {baseline:,.2f} USD\n"
-        f"Resultado: {result:,.2f} USD\n"
-        f"Variacao: {delta:+,.2f} USD\n\n"
+        f"Baseline: {baseline:,.2f} {currency}\n"
+        f"Resultado: {result:,.2f} {currency}\n"
+        f"Variacao: {delta:+,.2f} {currency}\n\n"
         "Verde reduz o custo. Vermelho aumenta o custo."
     )
     _add_side_note(slide, text, 10.0, 1.75, 2.4, 2.9, body_size=12)
@@ -1978,4 +1980,5 @@ def _coverage_metric(dataframe: pd.DataFrame | None, metric: str) -> float:
         return 0.0
     match = dataframe.loc[dataframe["metric"].eq(metric), "coverage_pct"]
     return float(match.iloc[0]) if not match.empty else 0.0
+
 

@@ -624,6 +624,7 @@ def _render_home() -> str:
       const formatByCloud = {
         aws: [
           { value: "aws-invoice", label: "AWS Invoice CSV" },
+          { value: "aws-resource-csv", label: "AWS Resource CSV" },
           { value: "aws-billing-pdf", label: "AWS Billing PDF" },
           { value: "generic", label: "CSV generico" }
         ],

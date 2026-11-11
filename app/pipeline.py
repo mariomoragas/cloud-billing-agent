@@ -18,6 +18,7 @@ from app.normalizer import load_and_normalize_csv
 from app.oci_bom import build_oci_bom
 from app.oci_mapper import build_oci_mapping, load_mapping_table
 from app.parsers.aws_invoice import load_aws_invoice_csv
+from app.parsers.aws_resource_csv import load_aws_resource_csv
 from app.parsers.azure_cost_csv import load_azure_cost_csv
 from app.parsers.gcp_cost_table import load_gcp_cost_table_csv
 from app.processor_analysis import build_processor_analysis
@@ -43,6 +44,10 @@ def process_billing_file(
         invoice_result = load_aws_invoice_csv(input_path)
         raw_df = invoice_result.dataframe
         data_quality_df = invoice_result.data_quality
+    elif file_format == "aws-resource-csv":
+        resource_result = load_aws_resource_csv(input_path)
+        raw_df = resource_result.dataframe
+        data_quality_df = resource_result.data_quality
     elif file_format == "aws-billing-pdf":
         from app.parsers.aws_billing_pdf import load_aws_billing_pdf
 
@@ -68,7 +73,7 @@ def process_billing_file(
     oci_mapping_df = build_oci_mapping(service_summary_df, mapping_df)
     extra_summaries = (
         build_aws_enterprise_summaries(raw_df)
-        if file_format in {"aws-invoice", "aws-billing-pdf"}
+        if file_format in {"aws-invoice", "aws-resource-csv", "aws-billing-pdf"}
         else {}
     )
     if file_format == "gcp-cost-table":

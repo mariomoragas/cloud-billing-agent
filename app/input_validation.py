@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-CSV_FORMATS = {"generic", "aws-invoice", "azure-cost-csv", "gcp-cost-table"}
+CSV_FORMATS = {"generic", "aws-invoice", "aws-resource-csv", "azure-cost-csv", "gcp-cost-table"}
 PDF_FORMATS = {"aws-billing-pdf"}
 DISALLOWED_MAGIC_PREFIXES = (
     b"MZ",  # Windows executables
@@ -86,3 +86,4 @@ def _looks_like_delimited_text(sample_text: str) -> bool:
         if lines_with_delimiter >= 1:
             return True
     return False
+

@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--format",
         default="generic",
-        choices=["generic", "aws-invoice", "aws-billing-pdf", "azure-cost-csv", "gcp-cost-table"],
+        choices=["generic", "aws-invoice", "aws-resource-csv", "aws-billing-pdf", "azure-cost-csv", "gcp-cost-table"],
         help="Formato do arquivo de entrada.",
     )
     parser.add_argument(
@@ -82,3 +82,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

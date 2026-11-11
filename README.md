@@ -99,7 +99,7 @@ A interface permite:
 - enviar CSV ou PDF
 - limitar upload de CSV/PDF a 300MB por arquivo
 - escolher o formato do arquivo
-- escolher AWS Invoice CSV, AWS Billing PDF, Azure Cost CSV, GCP Cost table CSV ou CSV generico
+- escolher AWS Invoice CSV, AWS Resource CSV, AWS Billing PDF, Azure Cost CSV, GCP Cost table CSV ou CSV generico
 - baixar o Excel pronto no navegador
 - baixar o PowerPoint executivo no navegador
 - marcar opcao para apagar os arquivos gerados apos o download (Excel/PPT)
@@ -174,6 +174,7 @@ Exemplo com caminhos explicitos:
 
 - `generic`: CSV com aliases de colunas comuns de billing multicloud
 - `aws-invoice`: CSV de invoice consolidada da AWS
+- `aws-resource-csv`: CSV AWS detalhado por recurso, separado por ponto e virgula e com numeros em formato brasileiro
 - `aws-billing-pdf`: PDF de billing consolidado da AWS Billing and Cost Management
 - `azure-cost-csv`: CSV Azure em formato de tabela de metricas com colunas em portugues
 - `gcp-cost-table`: CSV de GCP Cost table exportado pelo console de billing
@@ -229,6 +230,19 @@ Regras aplicadas:
 - remove por padrao linhas sem identificacao de conta vinculada nem `ClientRef`
 - infere regiao a partir do prefixo de `UsageType` quando possivel
 - infere unidade de uso com base em `UsageType` e `ItemDescription`
+
+## AWS Resource CSV
+
+O parser `aws-resource-csv` suporta exports detalhados por recurso com colunas como `servico`, `regiao`, `usage_type`, `tipo_instancia`, `resource_id`, `quantidade_uso`, `unidade` e `custo_usd`.
+
+Regras aplicadas:
+
+- detecta valores decimais no formato brasileiro
+- preserva conta, recurso, shape, operacao e tags no dado normalizado
+- infere `product_code` para os principais servicos AWS usados na BoM OCI
+- registra desconto apenas quando existe preco de tabela positivo e superior ao custo faturado
+- infere o periodo `AAAA-MM` a partir do nome do arquivo
+
 
 ## GCP Cost table CSV
 
